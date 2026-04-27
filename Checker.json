@@ -4,14 +4,14 @@
       "id": "tengoku_202605",
       "name": "天獄",
       "resetType": "once",
-      "startDate": "2026-05-01",
+      "startDate": "2026-04-01",
       "endDate": "2026-05-31"
     },
     {
       "id": "inferno_202605",
       "name": "インフェルノ",
       "resetType": "daily",
-      "startDate": "2026-05-15",
+      "startDate": "2026-04-15",
       "endDate": "2026-05-31"
     }
   ]
