@@ -1,15 +1,11 @@
 // ========== DQX Tools Launcher ==========
-const DQXTools = {
+window.DQXTools = {
     tools: {},
     currentTool: null,
     container: null,
 
     register: function(toolId, toolConfig) {
         this.tools[toolId] = toolConfig;
-    },
-
-    isMobile: function() {
-        return window.innerWidth <= 768;
     },
 
     init: function(containerId) {
@@ -19,58 +15,35 @@ const DQXTools = {
             return;
         }
         this.showLauncher();
-        
-        window.addEventListener('resize', () => {
-            if (this.currentTool === null) {
-                this.showLauncher();
-            }
-        });
     },
 
     showLauncher: function() {
         const toolButtons = Object.entries(this.tools).map(([id, tool]) => {
+            // インラインスタイルで完全に固定（他ツールのCSSに影響されない）
             return `<button onclick="DQXTools.loadTool('${id}')" style="
-                        flex: 1;
-                        max-width: 160px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        font-weight: bold;
+                        padding: 8px 16px;
+                        margin: 4px;
+                        cursor: pointer;
+                        border-radius: 8px;
                         border: none;
-                        border-radius: 40px;
                         background: #0066cc;
                         color: white;
-                        cursor: pointer;
-                        transition: transform 0.1s;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-                    " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                        font-size: 14px;
+                        font-weight: bold;
+                        font-family: inherit;
+                    ">
                         ${tool.name}
                     </button>`;
         }).join('');
         
-        const isMobile = this.isMobile();
-        
-        if (isMobile) {
-            this.container.innerHTML = `
-                <div style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 12px; display: flex; gap: 10px; justify-content: center; border-top: 1px solid #ddd; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+        this.container.innerHTML = `
+            <div style="margin-bottom: 16px; padding: 8px; background: #eef2f7; border-radius: 12px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     ${toolButtons}
                 </div>
-                <div id="dqx-tool-container" style="padding-bottom: 80px;"></div>
-            `;
-            // ダークモード対応
-            if (!document.getElementById('dqx-dark-fix')) {
-                const darkStyle = document.createElement('style');
-                darkStyle.id = 'dqx-dark-fix';
-                darkStyle.textContent = `body.dark-mode #dqx-app > div[style*="position: fixed"] { background: rgba(26,26,42,0.95) !important; border-top-color: #333 !important; }`;
-                document.head.appendChild(darkStyle);
-            }
-        } else {
-            this.container.innerHTML = `
-                <div style="display: flex; gap: 12px; justify-content: flex-start; padding: 0 0 20px 0; margin-bottom: 10px;">
-                    ${toolButtons}
-                </div>
-                <div id="dqx-tool-container"></div>
-            `;
-        }
+            </div>
+            <div id="dqx-tool-container"></div>
+        `;
     },
 
     loadTool: async function(toolId) {
@@ -85,12 +58,19 @@ const DQXTools = {
         
         try {
             await this.loadScript(tool.url);
-            if (window[tool.renderFn] && typeof window[tool.renderFn] === 'function') {
-                window[tool.renderFn]('#dqx-tool-container');
+
+            // ネスト対応（例: 'DQXDailyChecker.render'）
+            const fn = tool.renderFn
+                .split('.')
+                .reduce((obj, key) => obj?.[key], window);
+
+            if (typeof fn === 'function') {
+                fn('#dqx-tool-container');
                 this.currentTool = toolId;
             } else {
                 toolContainer.innerHTML = '<div style="color: red;">エラー: ツールの読み込みに失敗しました</div>';
             }
+
         } catch(e) {
             console.error('ツール読み込みエラー:', e);
             toolContainer.innerHTML = '<div style="color: red;">エラー: ツールの読み込みに失敗しました</div>';
