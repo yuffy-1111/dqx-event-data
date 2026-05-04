@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DQXツール</title>
+</head>
+<body>
+
+<div id="dqx-app"></div>
+
+<script src="./launcher.js"></script>
+<script src="./tools/dqx-checker.js"></script>
+
+<script>
+window.addEventListener('load', function() {
+    DQXTools.register('daily-checker', {
+        name: '📋 DQX日課チェッカー',
+        url: './tools/dqx-checker.js',
+        renderFn: 'DQXDailyChecker.render'
+    });
+    DQXTools.init('dqx-app');
+});
+</script>
+
+</body>
+</html>
