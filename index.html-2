@@ -21,6 +21,11 @@ window.addEventListener('load', function() {
     });
     DQXTools.init('dqx-app');
 });
+    DQXTools.register('exp-calc', {
+    name: '⚡ 傭兵用多機能ツール',
+    url: './tools/exp-calculator.js',
+    renderFn: 'ExpCalculator.render'
+});
 </script>
 
 </body>
