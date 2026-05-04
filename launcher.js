@@ -42,6 +42,7 @@ const DQXTools = {
                         cursor: pointer;
                         transition: transform 0.1s;
                         box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
                         ${tool.name}
                     </button>`;
@@ -56,7 +57,6 @@ const DQXTools = {
                 </div>
                 <div id="dqx-tool-container" style="padding-bottom: 80px;"></div>
             `;
-            // ダークモード対応
             if (!document.getElementById('dqx-dark-fix')) {
                 const darkStyle = document.createElement('style');
                 darkStyle.id = 'dqx-dark-fix';
@@ -85,12 +85,12 @@ const DQXTools = {
         
         try {
             await this.loadScript(tool.url);
-
-            // ★ 修正点：ドット区切りに対応（例: 'DQXDailyChecker.render'）
+            
+            // ★ 動く方の読み込みロジック（ネスト対応）
             const fn = tool.renderFn
                 .split('.')
                 .reduce((obj, key) => obj && obj[key], window);
-
+            
             if (typeof fn === 'function') {
                 fn('#dqx-tool-container');
                 this.currentTool = toolId;
