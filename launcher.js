@@ -1,5 +1,5 @@
 // ========== DQX Tools Launcher ==========
-window.DQXTools = { ... }
+const DQXTools = {
     tools: {},
     currentTool: null,
     container: null,
