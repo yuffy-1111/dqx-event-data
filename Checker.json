@@ -8,6 +8,13 @@
       "endDateTime": "2026-05-04T05:59:00+09:00"
     },
     {
+      "id": "battleload-fever-2026-05",
+      "name": "バトルロードフィーバー",
+      "resetType": "daily",
+      "startDateTime": "2026-05-04T06:00:00+09:00",
+      "endDateTime": "2026-05-14T05:59:00+09:00"
+    },
+    {
       "id": "re:ffⅹⅳ",
       "name": "お花大好きクポ！",
       "resetType": "once",
