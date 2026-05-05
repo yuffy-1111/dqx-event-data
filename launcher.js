@@ -3,6 +3,7 @@ const DQXTools = {
     tools: {},
     currentTool: null,
     container: null,
+    darkMode: false,
 
     register: function(toolId, toolConfig) {
         this.tools[toolId] = toolConfig;
@@ -18,6 +19,11 @@ const DQXTools = {
             console.error('コンテナが見つかりません:', containerId);
             return;
         }
+        
+        // ダークモードの初期化
+        this.darkMode = localStorage.getItem('darkMode') === 'dark';
+        this.applyDarkMode();
+        
         this.showLauncher();
         
         window.addEventListener('resize', () => {
@@ -25,6 +31,18 @@ const DQXTools = {
                 this.showLauncher();
             }
         });
+    },
+
+    applyDarkMode: function() {
+        document.body.classList.toggle('dark-mode', this.darkMode);
+        const btn = document.getElementById('global-dark-toggle');
+        if (btn) btn.textContent = this.darkMode ? '☀️' : '🌙';
+    },
+
+    toggleDarkMode: function() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('darkMode', this.darkMode ? 'dark' : 'light');
+        this.applyDarkMode();
     },
 
     showLauncher: function() {
@@ -48,15 +66,36 @@ const DQXTools = {
                     </button>`;
         }).join('');
         
+        // ダークモードトグルボタン
+        const darkToggle = `<button id="global-dark-toggle" style="
+                                width: 44px;
+                                height: 44px;
+                                border-radius: 50%;
+                                border: none;
+                                background: #0066cc;
+                                color: white;
+                                font-size: 18px;
+                                cursor: pointer;
+                                flex-shrink: 0;
+                                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                                transition: transform 0.1s;
+                            " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                                ${this.darkMode ? '☀️' : '🌙'}
+                            </button>`;
+        
         const isMobile = this.isMobile();
         
         if (isMobile) {
             this.container.innerHTML = `
-                <div style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 12px; display: flex; gap: 10px; justify-content: center; border-top: 1px solid #ddd; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
-                    ${toolButtons}
+                <div style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 12px; display: flex; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid #ddd; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1;">
+                        ${toolButtons}
+                    </div>
+                    ${darkToggle}
                 </div>
                 <div id="dqx-tool-container" style="padding-bottom: 80px;"></div>
             `;
+            
             if (!document.getElementById('dqx-dark-fix')) {
                 const darkStyle = document.createElement('style');
                 darkStyle.id = 'dqx-dark-fix';
@@ -65,11 +104,20 @@ const DQXTools = {
             }
         } else {
             this.container.innerHTML = `
-                <div style="display: flex; gap: 12px; justify-content: flex-start; padding: 0 0 20px 0; margin-bottom: 10px;">
-                    ${toolButtons}
+                <div style="display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 0 0 20px 0; margin-bottom: 10px;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        ${toolButtons}
+                    </div>
+                    ${darkToggle}
                 </div>
                 <div id="dqx-tool-container"></div>
             `;
+        }
+        
+        // トグルボタンのイベントリスナーを設定
+        const toggleBtn = document.getElementById('global-dark-toggle');
+        if (toggleBtn) {
+            toggleBtn.onclick = () => this.toggleDarkMode();
         }
     },
 
@@ -86,7 +134,6 @@ const DQXTools = {
         try {
             await this.loadScript(tool.url);
             
-            // ★ 動く方の読み込みロジック（ネスト対応）
             const fn = tool.renderFn
                 .split('.')
                 .reduce((obj, key) => obj && obj[key], window);
