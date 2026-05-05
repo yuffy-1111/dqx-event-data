@@ -773,8 +773,13 @@
     }
 
     // ===== 外部公開 =====
-    global.DQXDailyChecker = {
-        render: function(containerSelector) {
+   global.DQXDailyChecker = {
+    render: function(selector) { ... },
+    destroy: function() {
+        // 日課チェッカーにタイマーがあれば同様に停止
+        // 現状の日課チェッカーにはタイマーがないので空でOK
+    }
+};
             const container = document.querySelector(containerSelector);
             if (!container) return;
             
