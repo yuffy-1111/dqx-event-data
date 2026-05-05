@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（最終版・ダークモード修正完了） ==========
+// ========== DQX日課チェッカー（最終版・列固定修正完了） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -543,6 +543,98 @@
         renderAll();
     }
 
+    // 列固定を適用する関数
+    function applyStickyColumns() {
+        // テーブル要素を取得
+        const table = document.querySelector('#mainTable');
+        if (!table) return;
+        
+        // テーブルのスタイルを設定
+        table.style.position = 'relative';
+        table.style.borderCollapse = 'separate';
+        table.style.borderSpacing = '0';
+        
+        // theadとtbodyのスタイル
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
+        if (thead) {
+            thead.style.display = 'block';
+            thead.style.position = 'sticky';
+            thead.style.top = '0';
+            thead.style.zIndex = '25';
+        }
+        if (tbody) {
+            tbody.style.display = 'block';
+            tbody.style.overflowX = 'visible';
+        }
+        
+        // すべてのtrのスタイル
+        const allRows = table.querySelectorAll('tr');
+        allRows.forEach(row => {
+            row.style.display = 'table';
+            row.style.width = '100%';
+            row.style.tableLayout = 'fixed';
+        });
+        
+        // すべてのthとtdのスタイル
+        const allCells = table.querySelectorAll('th, td');
+        allCells.forEach(cell => {
+            cell.style.display = 'table-cell';
+        });
+        
+        // 最初の列にstickyを適用
+        const firstCells = table.querySelectorAll('td:first-child, th:first-child');
+        firstCells.forEach(cell => {
+            cell.style.position = 'sticky';
+            cell.style.left = '0';
+            cell.style.zIndex = '100';
+        });
+        
+        // ヘッダーの最初の列
+        const headerFirst = table.querySelector('thead tr th:first-child');
+        if (headerFirst) {
+            headerFirst.style.zIndex = '200';
+            headerFirst.style.backgroundColor = isDarkMode() ? '#1f2937' : '#e6edf4';
+            headerFirst.style.boxShadow = '2px 0 4px rgba(0,0,0,0.1)';
+        }
+        
+        // セクション行の最初の列
+        const sectionFirstCells = table.querySelectorAll('tbody tr.section-row td:first-child');
+        sectionFirstCells.forEach(cell => {
+            cell.style.zIndex = '150';
+            cell.style.backgroundColor = isDarkMode() ? '#334155' : '#b8c7da';
+            cell.style.boxShadow = '2px 0 4px rgba(0,0,0,0.1)';
+        });
+        
+        // 通常の行の最初の列
+        const normalFirstCells = table.querySelectorAll('tbody tr:not(.section-row) td:first-child');
+        normalFirstCells.forEach(cell => {
+            cell.style.zIndex = '100';
+            cell.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
+        });
+        
+        // 右側に影を追加
+        firstCells.forEach(cell => {
+            const existingAfter = cell.querySelector('.sticky-shadow');
+            if (!existingAfter) {
+                const shadow = document.createElement('div');
+                shadow.className = 'sticky-shadow';
+                shadow.style.position = 'absolute';
+                shadow.style.top = '0';
+                shadow.style.right = '-2px';
+                shadow.style.height = '100%';
+                shadow.style.width = '2px';
+                shadow.style.background = 'linear-gradient(to right, rgba(0,0,0,0.1), transparent)';
+                shadow.style.pointerEvents = 'none';
+                if (cell.style.position === 'sticky') {
+                    cell.style.position = 'relative';
+                    cell.appendChild(shadow);
+                    cell.style.position = 'sticky';
+                }
+            }
+        });
+    }
+
     // イベントセクションと行を描画
     async function renderEventRows(tbody, targetDate) {
         let events = [];
@@ -936,6 +1028,11 @@
 
         renderEventRows(tbody, targetDate);
         renderDetailTable();
+        
+        // 列固定を適用（描画完了後）
+        setTimeout(() => {
+            applyStickyColumns();
+        }, 10);
     }
 
     // ===== スタイル定義 =====
@@ -955,80 +1052,22 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
 th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
 th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
-/* ===== 列固定の完全修正 ===== */
-#mainTable {
+.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
+
+/* セクション行 */
+.section-row {
     position: relative;
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
+    z-index: 3;
+    background: #b8c7da !important;
+    border-top: 2px solid #94a8c2;
+    border-bottom: 2px solid #94a8c2;
 }
 
-#mainTable tbody {
-    display: block;
-    overflow-x: visible;
-}
-
-#mainTable thead {
-    display: block;
-}
-
-#mainTable tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-}
-
-#mainTable th,
-#mainTable td {
-    display: table-cell;
-}
-
-#mainTable td:first-child,
-#mainTable th:first-child {
-    position: sticky;
-    left: 0;
-    background-color: inherit;
-}
-
-#mainTable thead tr th:first-child {
-    background-color: #e6edf4;
-    z-index: 30;
-    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
-}
-
-#mainTable tbody tr:not(.section-row) td:first-child {
-    background-color: #fafcff;
-    z-index: 10;
-}
-
-#mainTable tbody tr.section-row td:first-child {
-    background-color: #b8c7da !important;
-    z-index: 20;
-    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
-}
-
-#mainTable td:first-child::after,
-#mainTable th:first-child::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: -2px;
-    height: 100%;
-    width: 2px;
-    background: linear-gradient(to right, rgba(0,0,0,0.1), transparent);
-    pointer-events: none;
-}
-
-body.dark-mode #mainTable thead tr th:first-child {
-    background-color: #1f2937;
-}
-
-body.dark-mode #mainTable tbody tr:not(.section-row) td:first-child {
-    background-color: #111827;
-}
-
-body.dark-mode #mainTable tbody tr.section-row td:first-child {
-    background-color: #334155 !important;
+.section-row td {
+    background: inherit !important;
+    color: #1e3a5f !important;
+    font-weight: bold;
+    letter-spacing: 0.5px;
 }
 
 .detail-section-row td { background: #e9edf2; font-weight: bold; }
@@ -1066,8 +1105,6 @@ body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
-body.dark-mode tbody tr:not(.section-row) td:first-child { background: #111827 !important; }
-body.dark-mode thead tr th:first-child { background: #1f2937 !important; }
 
 /* ダークモード セクション行 */
 body.dark-mode .section-row {
