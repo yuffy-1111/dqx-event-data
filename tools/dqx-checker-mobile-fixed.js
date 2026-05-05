@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（GitHub収録版・destroy対応） ==========
+// ========== DQX日課チェッカー（GitHub収録版・destroy対応・スマホ表示修正） ==========
 (function(global) {
     // ===== ストレージキー（現状維持） =====
     const STORAGE_CHARS = 'dqx_chars_final9';
@@ -777,7 +777,7 @@
 <style>
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #eef2f7; margin: 0; padding: 8px; color: #1e2f3f; }
-.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 10px; overflow-x: auto; }
+.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 60px; overflow-x: auto; }
 .toolbar { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #e2edf2; }
 .toolbar input { padding: 5px 8px; font-size: 0.7rem; border: 1px solid #ccc; border-radius: 20px; width: 90px; }
 .toolbar input[type="color"] { width: 32px; height: 30px; border-radius: 20px; cursor: pointer; }
@@ -813,6 +813,14 @@ input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; po
 .edit-button { width: 28px; height: 28px; margin: 0 auto; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-size: 14px; background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-enabled { background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-disabled { background-color: #f59e0b; border: 1px solid #d97706; color: white; }
+@media (max-width: 768px) {
+  body { padding: 12px 0 0 0 !important; }
+  .container { padding: 6px 0 100px !important; }
+  .char-name { font-size: 0.65rem; }
+  .toolbar input { width: 70px; }
+  .toolbar button { padding: 5px 8px; font-size: 0.65rem; }
+  .edit-button { width: 24px; height: 24px; font-size: 12px; }
+}
 @media (max-width: 600px) { .char-name { font-size: 0.65rem; } .toolbar input { width: 70px; } .toolbar button { padding: 5px 8px; font-size: 0.65rem; } .edit-button { width: 24px; height: 24px; font-size: 12px; } }
 body.dark-mode { background: #0f172a; color: #e5e7eb; }
 body.dark-mode .container { background: #111827; }
