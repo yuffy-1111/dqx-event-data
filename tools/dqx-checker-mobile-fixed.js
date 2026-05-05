@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（最終版・セクション中央配置） ==========
+// ========== DQX日課チェッカー（最終版・セクション中央配置修正済み） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -490,7 +490,7 @@
         if (!detailContainer) return;
 
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
-        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></table></thead><tbody>';
+        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></td></thead><tbody>';
 
         // パニガルムセクション
         html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
@@ -568,9 +568,24 @@
             secRow.className = 'section-row';
             const secTd = document.createElement('td');
             secTd.colSpan = 1 + characters.length;
-            secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span>▼ イベント（毎日）</span>`;
+            
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.justifyContent = 'space-between';
+            wrapper.style.width = '100%';
+            
+            const leftDiv = document.createElement('div');
+            leftDiv.style.textAlign = 'left';
+            leftDiv.innerText = '▼ イベント（毎日）';
+            wrapper.appendChild(leftDiv);
+            
+            const rightDiv = document.createElement('div');
+            rightDiv.style.width = '28px';
+            wrapper.appendChild(rightDiv);
+            
+            secTd.appendChild(wrapper);
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
@@ -656,9 +671,24 @@
             secRow.className = 'section-row';
             const secTd = document.createElement('td');
             secTd.colSpan = 1 + characters.length;
-            secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span>▼ イベント（期間中1回）</span>`;
+            
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.justifyContent = 'space-between';
+            wrapper.style.width = '100%';
+            
+            const leftDiv = document.createElement('div');
+            leftDiv.style.textAlign = 'left';
+            leftDiv.innerText = '▼ イベント（期間中1回）';
+            wrapper.appendChild(leftDiv);
+            
+            const rightDiv = document.createElement('div');
+            rightDiv.style.width = '28px';
+            wrapper.appendChild(rightDiv);
+            
+            secTd.appendChild(wrapper);
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
@@ -799,9 +829,19 @@
                 const td = document.createElement('td');
                 td.colSpan = 1 + characters.length;
                 td.style.padding = '3px 8px';
-                td.style.position = 'relative';
                 
-                const nextText = getSectionNextText(item.cycleTaskId, targetDate);
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.alignItems = 'center';
+                wrapper.style.justifyContent = 'space-between';
+                wrapper.style.width = '100%';
+                
+                // 左側（非表示ボタン + セクション名）
+                const leftDiv = document.createElement('div');
+                leftDiv.style.textAlign = 'left';
+                leftDiv.style.display = 'flex';
+                leftDiv.style.alignItems = 'center';
+                leftDiv.style.gap = '8px';
                 
                 if (isEditMode && item.taskKey) {
                     const hideBtn = document.createElement('button');
@@ -811,29 +851,37 @@
                     hideBtn.style.borderRadius = '8px';
                     hideBtn.style.cursor = 'pointer';
                     hideBtn.style.fontSize = '14px';
-                    hideBtn.style.marginRight = '10px';
                     hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
                     hideBtn.style.color = 'white';
-                    hideBtn.style.verticalAlign = 'middle';
-                    td.appendChild(hideBtn);
+                    hideBtn.onclick = (() => { toggleHidden(item.taskKey); });
+                    leftDiv.appendChild(hideBtn);
                 }
                 
                 const labelSpan = document.createElement('span');
                 labelSpan.innerText = item.label;
-                labelSpan.style.textAlign = 'left';
-                td.appendChild(labelSpan);
+                leftDiv.appendChild(labelSpan);
+                wrapper.appendChild(leftDiv);
                 
+                // 中央（次回表示）
+                const nextText = getSectionNextText(item.cycleTaskId, targetDate);
                 if (nextText) {
-                    const nextSpan = document.createElement('span');
-                    nextSpan.style.position = 'absolute';
-                    nextSpan.style.left = '50%';
-                    nextSpan.style.transform = 'translateX(-50%)';
-                    nextSpan.style.fontSize = '0.6rem';
-                    nextSpan.innerText = nextText;
-                    td.appendChild(nextSpan);
+                    const centerDiv = document.createElement('div');
+                    centerDiv.style.textAlign = 'center';
+                    centerDiv.style.fontSize = '0.6rem';
+                    centerDiv.innerText = nextText;
+                    wrapper.appendChild(centerDiv);
+                } else {
+                    const centerDiv = document.createElement('div');
+                    wrapper.appendChild(centerDiv);
                 }
                 
+                // 右側（バランス用）
+                const rightDiv = document.createElement('div');
+                rightDiv.style.width = '28px';
+                wrapper.appendChild(rightDiv);
+                
+                td.appendChild(wrapper);
                 row.appendChild(td);
                 tbody.appendChild(row);
                 continue;
