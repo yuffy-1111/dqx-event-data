@@ -46,22 +46,22 @@ const DQXTools = {
     },
 
     getButtonStyle: function() {
-        return `
-            flex: 1;
-            max-width: 160px;
-            padding: 10px 20px;
-            font-size: 14px;
-            font-weight: bold;
-            border: none !important;
-            border-radius: 40px !important;
-            background: #0066cc !important;
-            color: white !important;
-            cursor: pointer;
-            transition: transform 0.1s;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        `;
-    },
+    return `
+        flex: 0 0 auto;
+        min-width: 120px;
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: bold;
+        border: none !important;
+        border-radius: 40px !important;
+        background: #0066cc !important;
+        color: white !important;
+        cursor: pointer;
+        transition: transform 0.1s;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+},
 
     getIconButtonStyle: function() {
         return `
