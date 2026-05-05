@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（GitHub収録版） ==========
+// ========== DQX日課チェッカー（GitHub収録版・destroy対応） ==========
 (function(global) {
     // ===== ストレージキー（現状維持） =====
     const STORAGE_CHARS = 'dqx_chars_final9';
@@ -307,6 +307,7 @@
     let nextId = 1;
     let disabledMap = new Map();
     let isEditMode = false;
+    let currentObserver = null;
 
     function loadCharacters() {
         const saved = localStorage.getItem(STORAGE_CHARS);
@@ -523,7 +524,6 @@
         const tbody = document.getElementById('tableBody');
         if (!tbody) return;
 
-        // 既存のイベントセクションを削除
         const existingSections = tbody.querySelectorAll('tr.section-row');
         for (let i = 0; i < existingSections.length; i++) {
             const row = existingSections[i];
@@ -772,18 +772,8 @@
         appendLimitedRows();
     }
 
-    // ===== 外部公開 =====
-   global.DQXDailyChecker = {
-    render: function(selector) { ... },
-    destroy: function() {
-        // 日課チェッカーにタイマーがあれば同様に停止
-        // 現状の日課チェッカーにはタイマーがないので空でOK
-    }
-};
-            const container = document.querySelector(containerSelector);
-            if (!container) return;
-            
-            container.innerHTML = `
+    // ===== スタイル定義 =====
+    const toolStyle = `
 <style>
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #eef2f7; margin: 0; padding: 8px; color: #1e2f3f; }
@@ -852,6 +842,15 @@ body.dark-mode .edit-mode-cell { background-color: #2a2a2a; }
 body.dark-mode .edit-button-enabled { background-color: #374151; border-color: #4b5563; color: #e5e7eb; }
 body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: #d97706; }
 </style>
+`;
+
+    // ===== 外部公開 =====
+    global.DQXDailyChecker = {
+        render: function(containerSelector) {
+            const container = document.querySelector(containerSelector);
+            if (!container) return;
+            
+            container.innerHTML = toolStyle + `
 <div class="container">
 <div id="toolbar" class="toolbar">
 <input id="newCharName" type="text" placeholder="キャラ名" />
@@ -875,7 +874,6 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             loadCharacters();
             loadDisabled();
             
-            // イベントリスナー設定
             const addBtn = document.getElementById('addCharBtn');
             const editBtn = document.getElementById('editModeBtn');
             if (addBtn) addBtn.addEventListener('click', addCharacter);
@@ -883,11 +881,24 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             
             renderAll();
             
-            // ダークモード監視
-            const observer = new MutationObserver(() => {
+            // Observerを保存
+            if (currentObserver) currentObserver.disconnect();
+            currentObserver = new MutationObserver(() => {
                 if (typeof renderAll === 'function') renderAll();
             });
-            observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+            currentObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        },
+        
+        destroy: function() {
+            if (currentObserver) {
+                currentObserver.disconnect();
+                currentObserver = null;
+            }
+            // イベントリスナーの削除など必要なら追加
+            const addBtn = document.getElementById('addCharBtn');
+            const editBtn = document.getElementById('editModeBtn');
+            if (addBtn) addBtn.replaceWith(addBtn.cloneNode(true));
+            if (editBtn) editBtn.replaceWith(editBtn.cloneNode(true));
         }
     };
 })(window);
