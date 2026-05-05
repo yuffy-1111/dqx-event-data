@@ -85,6 +85,15 @@ const DQXTools = {
         `;
     },
 
+    destroyCurrentTool: function() {
+        if (this.currentTool === 'exp-calc' && window.ExpCalculator && window.ExpCalculator.destroy) {
+            window.ExpCalculator.destroy();
+        }
+        if (this.currentTool === 'daily-checker' && window.DQXDailyChecker && window.DQXDailyChecker.destroy) {
+            window.DQXDailyChecker.destroy();
+        }
+    },
+
     showLauncher: function() {
         const buttonStyle = this.getButtonStyle();
         const iconStyle = this.getIconButtonStyle();
@@ -181,7 +190,10 @@ const DQXTools = {
     },
 
     goHome: function() {
-        // ツールコンテナを完全に破棄して再作成
+        // 現在のツールを破棄
+        this.destroyCurrentTool();
+        
+        // ツールコンテナを完全に破棄
         const oldContainer = document.getElementById('dqx-tool-container');
         if (oldContainer) oldContainer.remove();
         
@@ -202,7 +214,10 @@ const DQXTools = {
         if (!tool) return;
         if (this.currentTool === toolId) return;
         
-        // ツールコンテナを完全に破棄して再作成（前のツールの残留を完全消去）
+        // 現在のツールを破棄してから新しいツールへ
+        this.destroyCurrentTool();
+        
+        // ツールコンテナを完全に破棄
         const oldContainer = document.getElementById('dqx-tool-container');
         if (oldContainer) oldContainer.remove();
         
@@ -216,7 +231,7 @@ const DQXTools = {
         toolContainer.innerHTML = '<div style="text-align: center; padding: 40px;">📥 読み込み中...</div>';
         
         try {
-            // 同名のスクリプトがあれば削除してから読み込み
+            // 同名のスクリプトがあれば削除
             const oldScript = document.querySelector(`script[src="${tool.url}"]`);
             if (oldScript) oldScript.remove();
             
