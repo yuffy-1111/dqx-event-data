@@ -34,7 +34,7 @@
         { name: "黄昏の奏戦記", taskId: "tasogare", key: "tasogare" },
         { name: "レモンスライムクイズ", taskId: "lemon", key: "lemon" },
         
-        { type: "section", label: "▼ 邪神の宮殿", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
+        { type: "section", label: "▼ 隔週2", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
         { name: "邪神の宮殿", taskId: "jashin", key: "jashin" },
         
         { type: "section", label: "▼ 月1回", sectionId: "monthly-section", taskKey: "section_monthly", cycleTaskId: "monthly" },
@@ -46,10 +46,10 @@
         { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
         { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
         
-        { type: "section", label: "▼ 受け取り（10日）", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
         
-        { type: "section", label: "▼ 受け取り（1日）", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
         { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
     ];
 
@@ -302,7 +302,7 @@
             let period = '';
             if (day <= 5) period = `${formatDate(new Date(year, month, 1))}〜5日`;
             else period = `${formatDate(new Date(year, month, 15))}〜20日`;
-            return { name: `昏冥庫パニガルム`, detail: `🌑${KONMEIKU_BOSSES[bossIdx]} ${period}` };
+            return { name: `昏冥庫パニガルム`, detail: `${KONMEIKU_BOSSES[bossIdx]} ${period}` };
         } else {
             let nextStart, nextEnd;
             if (day < 15) { nextStart = new Date(year, month, 15); nextEnd = new Date(year, month, 20); }
@@ -822,7 +822,6 @@
                 
                 const spanWrapper = document.createElement('span');
                 spanWrapper.style.display = 'flex';
-                spanWrapper.style.justifyContent = 'space-between';
                 spanWrapper.style.width = '100%';
                 spanWrapper.innerHTML = `<span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; color: #888;">${escapeHtml(nextText)}</span>` : ''}`;
                 td.appendChild(spanWrapper);
