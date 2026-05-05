@@ -938,51 +938,55 @@
         renderDetailTable();
     }
 
-    // ===== スタイル定義 =====
+        // ===== スタイル定義（修正版） =====
     const toolStyle = `
 <style>
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #eef2f7; margin: 0; padding: 8px; color: #1e2f3f; }
 .container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 20px; overflow-x: auto; }
+
 .toolbar { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #e2edf2; }
 .toolbar input { padding: 5px 8px; font-size: 0.7rem; border: 1px solid #ccc; border-radius: 20px; width: 90px; }
 .toolbar input[type="color"] { width: 32px; height: 30px; border-radius: 20px; cursor: pointer; }
 .toolbar button { background: #eef2ff; border: none; padding: 5px 12px; border-radius: 30px; font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: 0.1s; }
+
 .add-btn { background: #0066cc !important; color: white !important; }
 .edit-btn { background: #f59e0b !important; color: white !important; }
 .edit-mode-active { background: #10b981 !important; color: white !important; }
-.today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
-th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
-th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
-.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
 
-/* ===== sticky 完全修正 ===== */
-/* ヘッダーの「項目」セル */
-thead tr th:first-child {
-    position: sticky;
-    left: 0;
-    background-color: #e6edf4;
-    z-index: 10;
+.today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
+
+table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    font-size: 0.7rem;
+    table-layout: fixed;           /* ← 追加 */
 }
 
-/* 通常行の「項目」セル */
+/* ==================== 列固定 修正 ==================== */
+thead tr th:first-child,
 tbody tr td:first-child {
     position: sticky;
     left: 0;
-    background-color: #fafcff;
-    z-index: 5;
+    z-index: 10;
 }
 
-/* セクション行のセル */
+thead tr th:first-child {
+    background-color: #e6edf4;
+    z-index: 20;
+}
+
+tbody tr:not(.section-row) td:first-child {
+    background-color: #fafcff;
+}
+
 .section-row td {
     position: sticky;
     left: 0;
-    background: inherit !important;
-    z-index: 6;
+    z-index: 15;
 }
 
-/* ===== セクション行の視認性 ===== */
+/* セクション行 */
 .section-row {
     background: #b8c7da !important;
     border-top: 2px solid #94a8c2;
@@ -995,29 +999,19 @@ tbody tr td:first-child {
     letter-spacing: 0.5px;
 }
 
-.detail-section-row td { background: #e9edf2; font-weight: bold; }
-
-.char-header { min-width: 70px; }
-.char-header-content { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.char-name { display: inline-block; padding: 2px 4px; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 0.75rem; white-space: nowrap; }
-.char-controls { display: flex; gap: 4px; justify-content: center; align-items: center; }
-.char-color-input { width: 18px; height: 18px; border: 1px solid #ccc; border-radius: 50%; cursor: pointer; }
-.char-delete { background: none; border: none; font-size: 0.75rem; cursor: pointer; color: #a00; font-weight: bold; padding: 0 2px; }
-input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #2c7da0; margin: 0; }
-input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
-.edit-mode-cell { background-color: #fff3e0; }
-.edit-button { width: 28px; height: 28px; margin: 0 auto; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-size: 14px; background-color: #e2e8f0; border: 1px solid #cbd5e1; }
-.edit-button-enabled { background-color: #e2e8f0; border: 1px solid #cbd5e1; }
-.edit-button-disabled { background-color: #f59e0b; border: 1px solid #d97706; color: white; }
-.detail-table th, .detail-table td { text-align: left; padding: 6px 8px; }
-@media (max-width: 768px) {
-  body { padding: 12px 0 0 0 !important; }
-  .container { padding: 6px 0 100px !important; }
-  .char-name { font-size: 0.65rem; }
-  .toolbar input { width: 70px; }
-  .toolbar button { padding: 5px 8px; font-size: 0.65rem; }
-  .edit-button { width: 24px; height: 24px; font-size: 12px; }
+/* 詳細テーブル */
+.detail-table th, .detail-table td { 
+    text-align: left; 
+    padding: 6px 8px; 
 }
+
+/* 詳細テーブルのセクション行（クラスで制御） */
+.detail-section-row td {
+    background: #e9edf2;
+    font-weight: bold;
+}
+
+/* ==================== ダークモード ==================== */
 body.dark-mode { background: #0f172a; color: #e5e7eb; }
 body.dark-mode .container { background: #111827; }
 body.dark-mode .toolbar { border-bottom-color: #2a3441; }
@@ -1027,38 +1021,27 @@ body.dark-mode .add-btn { background: #3399ff !important; }
 body.dark-mode .edit-btn { background: #f59e0b !important; }
 body.dark-mode .edit-mode-active { background: #10b981 !important; }
 body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
+
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
 
-/* ダークモード sticky 通常行 */
+/* ダークモード 列固定 */
 body.dark-mode thead tr th:first-child {
     background-color: #1f2937;
-    z-index: 10;
 }
-
 body.dark-mode tbody tr:not(.section-row) td:first-child {
     background-color: #111827;
-    z-index: 5;
 }
-
 body.dark-mode .section-row td {
     background-color: #334155 !important;
-    z-index: 6;
 }
 
-/* ダークモード セクション行 */
-body.dark-mode .section-row {
-    background: #334155 !important;
-    border-top: 2px solid #475569;
-    border-bottom: 2px solid #475569;
+/* ダークモード 詳細テーブル */
+body.dark-mode .detail-section-row td {
+    background: #2d3a4a !important;
 }
 
-body.dark-mode .section-row td {
-    color: #ffffff !important;
-}
-
-body.dark-mode .detail-section-row td { background: #2d3a4a; }
 body.dark-mode .char-name { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .edit-mode-cell { background-color: #2a2a2a; }
