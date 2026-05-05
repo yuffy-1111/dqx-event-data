@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（完全リファクタ版） ==========
+// ========== DQX日課チェッカー（完全リファクタ版・修正済み） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -46,15 +46,11 @@
         { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
         { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
         
-        { type: "section", label: "▼ 受け取り", sectionId: "receive-section", taskKey: "section_receive", cycleTaskId: "sekkai" },
+        { type: "section", label: "▼ 受け取り（10日）", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
+        
+        { type: "section", label: "▼ 受け取り（1日）", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
         { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
-    ];
-
-    // イベントセクション用のテンプレート（動的生成時に使用）
-    const eventSections = [
-        { type: "section", label: "▼ イベント（毎日）", sectionId: "event-daily-section", taskKey: "section_event_daily" },
-        { type: "section", label: "▼ イベント（その他）", sectionId: "event-other-section", taskKey: "section_event_other" }
     ];
 
     function getTaskCount() { return sectionsTemplate.filter(item => !item.type).length; }
@@ -235,7 +231,7 @@
             const last = getLastUpdateDateForTask('pani', effectiveNow);
             nextDate = new Date(last.getTime() + 72 * 60 * 60 * 1000);
             const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
-            const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()} ${nextDate.getHours()}:00`;
+            const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
             if (diffDays <= 0) return `次回 ${nextStr}`;
             return `次回 ${nextStr}（あと${diffDays}日）`;
         }
@@ -501,6 +497,16 @@
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
         html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
 
+        // 現世庫パニガルム
+        const paniDetail = getPaniDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
+
+        // 昏冥庫パニガルム
+        const konmeikuDetail = getKonmeikuDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
+
         // イベント情報
         let events = [];
         try {
@@ -519,16 +525,6 @@
             html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(event.name)}</td>`;
             html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
         }
-
-        // パニガルム詳細
-        const paniDetail = getPaniDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td>`;
-        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
-
-        // 昏冥庫詳細
-        const konmeikuDetail = getKonmeikuDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td>`;
-        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
 
         html += '</tbody></table></div>';
         detailContainer.innerHTML = html;
@@ -575,13 +571,18 @@
             secTd.colSpan = 1 + characters.length;
             secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（毎日）</span></span>`;
+            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（毎日）</span><span style="font-size: 0.6rem; color: #888;"></span></span>`;
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
             for (const event of dailyEvents) {
-                if (isHidden(`event_${event.id}`)) continue;
+                const isHiddenRow = isHidden(`event_${event.id}`);
+                if (!isEditMode && isHiddenRow) continue;
+                
                 const row = document.createElement('tr');
+                if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+                row.style.backgroundColor = isHiddenRow && isEditMode ? '#f0f0f0' : '';
+                
                 const tdName = document.createElement('td');
                 tdName.className = 'task-name';
                 tdName.style.display = 'flex';
@@ -590,14 +591,15 @@
                 
                 if (isEditMode) {
                     const hideBtn = document.createElement('button');
-                    hideBtn.innerText = isHidden(`event_${event.id}`) ? '👁‍🗨' : '👁';
+                    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
                     hideBtn.style.width = '28px';
                     hideBtn.style.height = '28px';
                     hideBtn.style.borderRadius = '8px';
                     hideBtn.style.cursor = 'pointer';
                     hideBtn.style.fontSize = '14px';
-                    hideBtn.style.backgroundColor = isHidden(`event_${event.id}`) ? '#f59e0b' : '#e2e8f0';
+                    hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
+                    hideBtn.style.color = 'white';
                     hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
                     tdName.appendChild(hideBtn);
                 }
@@ -627,7 +629,7 @@
                             };
                         })(event, ch.id);
                         td.appendChild(editButton);
-                    } else {
+                    } else if (!isHiddenRow) {
                         const cb = document.createElement('input');
                         cb.type = 'checkbox';
                         if (disabled) {
@@ -649,7 +651,7 @@
             }
         }
 
-        // その他イベントセクション
+        // 期間中1回イベントセクション
         if (otherEvents.length) {
             const secRow = document.createElement('tr');
             secRow.className = 'section-row';
@@ -657,13 +659,18 @@
             secTd.colSpan = 1 + characters.length;
             secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（その他）</span></span>`;
+            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（期間中1回）</span><span style="font-size: 0.6rem; color: #888;"></span></span>`;
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
             for (const event of otherEvents) {
-                if (isHidden(`event_${event.id}`)) continue;
+                const isHiddenRow = isHidden(`event_${event.id}`);
+                if (!isEditMode && isHiddenRow) continue;
+                
                 const row = document.createElement('tr');
+                if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+                row.style.backgroundColor = isHiddenRow && isEditMode ? '#f0f0f0' : '';
+                
                 const tdName = document.createElement('td');
                 tdName.className = 'task-name';
                 tdName.style.display = 'flex';
@@ -672,14 +679,15 @@
                 
                 if (isEditMode) {
                     const hideBtn = document.createElement('button');
-                    hideBtn.innerText = isHidden(`event_${event.id}`) ? '👁‍🗨' : '👁';
+                    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
                     hideBtn.style.width = '28px';
                     hideBtn.style.height = '28px';
                     hideBtn.style.borderRadius = '8px';
                     hideBtn.style.cursor = 'pointer';
                     hideBtn.style.fontSize = '14px';
-                    hideBtn.style.backgroundColor = isHidden(`event_${event.id}`) ? '#f59e0b' : '#e2e8f0';
+                    hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
+                    hideBtn.style.color = 'white';
                     hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
                     tdName.appendChild(hideBtn);
                 }
@@ -709,7 +717,7 @@
                             };
                         })(event, ch.id);
                         td.appendChild(editButton);
-                    } else {
+                    } else if (!isHiddenRow) {
                         const cb = document.createElement('input');
                         cb.type = 'checkbox';
                         if (disabled) {
@@ -782,24 +790,53 @@
 
         for (let item of sectionsTemplate) {
             if (item.type === 'section') {
-                if (isHidden(item.taskKey)) continue;
+                const isHiddenRow = isHidden(item.taskKey);
+                if (!isEditMode && isHiddenRow) continue;
+                
                 const row = document.createElement('tr');
                 row.className = 'section-row';
+                if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+                
                 const td = document.createElement('td');
                 td.colSpan = 1 + characters.length;
                 td.style.textAlign = 'left';
                 td.style.padding = '3px 8px';
                 
                 const nextText = getSectionNextText(item.cycleTaskId, targetDate);
-                td.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; color: #888;">${escapeHtml(nextText)}</span>` : ''}</span>`;
+                
+                if (isEditMode && item.taskKey) {
+                    const hideBtn = document.createElement('button');
+                    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
+                    hideBtn.style.width = '28px';
+                    hideBtn.style.height = '28px';
+                    hideBtn.style.borderRadius = '8px';
+                    hideBtn.style.cursor = 'pointer';
+                    hideBtn.style.fontSize = '14px';
+                    hideBtn.style.marginRight = '10px';
+                    hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
+                    hideBtn.style.border = '1px solid #cbd5e1';
+                    hideBtn.style.color = 'white';
+                    hideBtn.onclick = (() => { toggleHidden(item.taskKey); });
+                    td.appendChild(hideBtn);
+                }
+                
+                const spanWrapper = document.createElement('span');
+                spanWrapper.style.display = 'flex';
+                spanWrapper.style.justifyContent = 'space-between';
+                spanWrapper.style.width = '100%';
+                spanWrapper.innerHTML = `<span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; color: #888;">${escapeHtml(nextText)}</span>` : ''}`;
+                td.appendChild(spanWrapper);
                 row.appendChild(td);
                 tbody.appendChild(row);
                 continue;
             }
 
-            if (isHidden(item.key)) continue;
+            const isHiddenRow = isHidden(item.key);
+            if (!isEditMode && isHiddenRow) continue;
             
             const row = document.createElement('tr');
+            if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+            
             const tdName = document.createElement('td');
             tdName.className = 'task-name';
             tdName.style.display = 'flex';
@@ -808,14 +845,15 @@
             
             if (isEditMode) {
                 const hideBtn = document.createElement('button');
-                hideBtn.innerText = isHidden(item.key) ? '👁‍🗨' : '👁';
+                hideBtn.innerText = isHiddenRow ? '✓' : '✗';
                 hideBtn.style.width = '28px';
                 hideBtn.style.height = '28px';
                 hideBtn.style.borderRadius = '8px';
                 hideBtn.style.cursor = 'pointer';
                 hideBtn.style.fontSize = '14px';
-                hideBtn.style.backgroundColor = isHidden(item.key) ? '#f59e0b' : '#e2e8f0';
+                hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                 hideBtn.style.border = '1px solid #cbd5e1';
+                hideBtn.style.color = 'white';
                 hideBtn.onclick = (() => { toggleHidden(item.key); });
                 tdName.appendChild(hideBtn);
             }
@@ -846,7 +884,7 @@
                         };
                     })(item.key, ch.id);
                     tdChk.appendChild(editButton);
-                } else {
+                } else if (!isHiddenRow) {
                     const cb = document.createElement('input');
                     cb.type = 'checkbox';
                     if (disabled) {
@@ -868,10 +906,7 @@
             tbody.appendChild(row);
         }
 
-        // イベント行の描画（非同期だが描画完了を待たない）
         renderEventRows(tbody, targetDate);
-        
-        // 詳細テーブル描画
         renderDetailTable();
     }
 
@@ -928,17 +963,18 @@ body.dark-mode .edit-btn { background: #f59e0b !important; }
 body.dark-mode .edit-mode-active { background: #10b981 !important; }
 body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
 body.dark-mode table { background: #111827; }
-body.dark-mode th { background: #1f2937; color: #e5e7eb; border-bottom-color: #374151; }
-body.dark-mode td { color: #e5e7eb; border-bottom-color: #2a3441; }
+body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
+body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
 body.dark-mode tbody tr td:first-child { background: #111827 !important; }
 body.dark-mode thead tr th:first-child { background: #1f2937 !important; }
 body.dark-mode .section-row { background: #1f2937; }
-body.dark-mode .section-row td { color: #9ca3af; }
-body.dark-mode .char-name { color: #e5e7eb; }
+body.dark-mode .section-row td { color: #fff; }
+body.dark-mode .char-name { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .edit-mode-cell { background-color: #2a2a2a; }
-body.dark-mode .edit-button-enabled { background-color: #374151; border-color: #4b5563; color: #e5e7eb; }
+body.dark-mode .edit-button-enabled { background-color: #374151; border-color: #4b5563; color: #fff; }
 body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: #d97706; }
+body.dark-mode .section-row td span span { color: #fff !important; }
 </style>
 `;
 
@@ -960,7 +996,7 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
 <div style="overflow-x: auto;">
 <table id="mainTable">
 <thead id="tableHeader">
-<tr id="headerRow"><th>項目</th></tr>
+<tr id="headerRow"><th>項目</th></td>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
