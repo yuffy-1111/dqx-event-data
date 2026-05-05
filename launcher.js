@@ -46,22 +46,24 @@ const DQXTools = {
     },
 
     getButtonStyle: function() {
-    return `
-        flex: 0 0 auto;
-        min-width: 120px;
-        padding: 10px 20px;
-        font-size: 14px;
-        font-weight: bold;
-        border: none !important;
-        border-radius: 40px !important;
-        background: #0066cc !important;
-        color: white !important;
-        cursor: pointer;
-        transition: transform 0.1s;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    `;
-},
+        return `
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 8px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none !important;
+            border-radius: 40px !important;
+            background: #0066cc !important;
+            color: white !important;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-align: center;
+            white-space: nowrap;
+        `;
+    },
 
     getIconButtonStyle: function() {
         return `
@@ -119,7 +121,7 @@ const DQXTools = {
         } else {
             this.container.innerHTML = `
                 <div id="launcher-bar" style="display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 0 0 20px 0; margin-bottom: 10px;">
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1;">
                         ${toolButtons}
                     </div>
                     ${darkToggle}
@@ -149,12 +151,12 @@ const DQXTools = {
                             </button>`;
         
         const barHtml = isMobile ? `
-            <div id="launcher-bar" style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 12px; display: flex; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid #ddd; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
+            <div id="launcher-bar" style="position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); padding: 10px 12px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; border-top: 1px solid #ddd; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.1);">
                 ${homeButton}
                 ${darkToggle}
             </div>
         ` : `
-            <div id="launcher-bar" style="display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 0 0 20px 0; margin-bottom: 10px;">
+            <div id="launcher-bar" style="display: flex; gap: 12px; justify-content: flex-end; align-items: center; padding: 0 0 20px 0; margin-bottom: 10px;">
                 ${homeButton}
                 ${darkToggle}
             </div>
@@ -179,11 +181,9 @@ const DQXTools = {
     },
 
     goHome: function() {
-        // ツールコンテナを空にする
         const toolContainer = document.getElementById('dqx-tool-container');
         if (toolContainer) toolContainer.innerHTML = '';
         
-        // ツールのスクリプトを削除
         if (this.currentTool === 'exp-calc') {
             const script = document.querySelector('script[src*="exp-calculator.js"]');
             if (script) script.remove();
@@ -205,13 +205,11 @@ const DQXTools = {
         const toolContainer = document.getElementById('dqx-tool-container');
         if (!toolContainer) return;
         
-        // ホームボタンバーに切り替え
         this.switchToHomeButton();
         
         toolContainer.innerHTML = '<div style="text-align: center; padding: 40px;">📥 読み込み中...</div>';
         
         try {
-            // スクリプトが既にあれば削除
             const oldScript = document.querySelector(`script[src="${tool.url}"]`);
             if (oldScript) oldScript.remove();
             
