@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（最終版・セクション修正完了） ==========
+// ========== DQX日課チェッカー（最終版・ダークモード修正完了） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -490,7 +490,7 @@
         if (!detailContainer) return;
 
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
-        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></td></thead><tbody>';
+        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
 
         // パニガルムセクション
         html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
@@ -1013,7 +1013,7 @@ body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
-body.dark-mode tbody tr td:first-child { background: #111827 !important; }
+body.dark-mode tbody tr:not(.section-row) td:first-child { background: #111827 !important; }
 body.dark-mode thead tr th:first-child { background: #1f2937 !important; }
 
 /* ダークモード セクション行 */
@@ -1054,7 +1054,7 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
 <div style="overflow-x: auto;">
 <table id="mainTable">
 <thead id="tableHeader">
-<tr id="headerRow"><th>項目</th></td>
+<tr id="headerRow"><th>項目</th></tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
