@@ -181,17 +181,17 @@ const DQXTools = {
     },
 
     goHome: function() {
-        const toolContainer = document.getElementById('dqx-tool-container');
-        if (toolContainer) toolContainer.innerHTML = '';
+        // ツールコンテナを完全に破棄して再作成
+        const oldContainer = document.getElementById('dqx-tool-container');
+        if (oldContainer) oldContainer.remove();
         
-        if (this.currentTool === 'exp-calc') {
-            const script = document.querySelector('script[src*="exp-calculator.js"]');
-            if (script) script.remove();
-        }
-        if (this.currentTool === 'daily-checker') {
-            const script = document.querySelector('script[src*="dqx-checker.js"]');
-            if (script) script.remove();
-        }
+        const newContainer = document.createElement('div');
+        newContainer.id = 'dqx-tool-container';
+        this.container.appendChild(newContainer);
+        
+        // スクリプトを削除
+        const scripts = document.querySelectorAll('script[src*="dqx-checker.js"], script[src*="exp-calculator.js"]');
+        scripts.forEach(script => script.remove());
         
         this.currentTool = null;
         this.showLauncher();
@@ -202,14 +202,21 @@ const DQXTools = {
         if (!tool) return;
         if (this.currentTool === toolId) return;
         
-        const toolContainer = document.getElementById('dqx-tool-container');
-        if (!toolContainer) return;
+        // ツールコンテナを完全に破棄して再作成（前のツールの残留を完全消去）
+        const oldContainer = document.getElementById('dqx-tool-container');
+        if (oldContainer) oldContainer.remove();
         
+        const toolContainer = document.createElement('div');
+        toolContainer.id = 'dqx-tool-container';
+        this.container.appendChild(toolContainer);
+        
+        // ホームボタンバーに切り替え
         this.switchToHomeButton();
         
         toolContainer.innerHTML = '<div style="text-align: center; padding: 40px;">📥 読み込み中...</div>';
         
         try {
+            // 同名のスクリプトがあれば削除してから読み込み
             const oldScript = document.querySelector(`script[src="${tool.url}"]`);
             if (oldScript) oldScript.remove();
             
@@ -224,12 +231,12 @@ const DQXTools = {
                 this.currentTool = toolId;
             } else {
                 toolContainer.innerHTML = '<div style="color: red;">エラー: ツールの読み込みに失敗しました</div>';
-                this.showLauncher();
+                this.goHome();
             }
         } catch(e) {
             console.error('ツール読み込みエラー:', e);
             toolContainer.innerHTML = '<div style="color: red;">エラー: ツールの読み込みに失敗しました</div>';
-            this.showLauncher();
+            this.goHome();
         }
     },
 
