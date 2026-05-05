@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（最終版） ==========
+// ========== DQX日課チェッカー（最終版・セクション中央配置） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -46,8 +46,10 @@
         { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
         { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
         
-        { type: "section", label: "▼ 受け取り", sectionId: "receive-section", taskKey: "section_receive", cycleTaskId: "sekkai" },
+        { type: "section", label: "▼ 受け取り（10日）", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
+        
+        { type: "section", label: "▼ 受け取り（1日）", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
         { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
     ];
 
@@ -488,7 +490,7 @@
         if (!detailContainer) return;
 
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
-        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
+        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></table></thead><tbody>';
 
         // パニガルムセクション
         html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
@@ -796,8 +798,8 @@
                 
                 const td = document.createElement('td');
                 td.colSpan = 1 + characters.length;
-                td.style.textAlign = 'left';
                 td.style.padding = '3px 8px';
+                td.style.position = 'relative';
                 
                 const nextText = getSectionNextText(item.cycleTaskId, targetDate);
                 
@@ -813,16 +815,25 @@
                     hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
                     hideBtn.style.color = 'white';
-                    hideBtn.onclick = (() => { toggleHidden(item.taskKey); });
+                    hideBtn.style.verticalAlign = 'middle';
                     td.appendChild(hideBtn);
                 }
                 
-                const spanWrapper = document.createElement('span');
-                spanWrapper.style.display = 'flex';
-                spanWrapper.style.alignItems = 'center';
-                spanWrapper.style.width = '100%';
-                spanWrapper.innerHTML = `<span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; margin-left: 12px;">${escapeHtml(nextText)}</span>` : ''}`;
-                td.appendChild(spanWrapper);
+                const labelSpan = document.createElement('span');
+                labelSpan.innerText = item.label;
+                labelSpan.style.textAlign = 'left';
+                td.appendChild(labelSpan);
+                
+                if (nextText) {
+                    const nextSpan = document.createElement('span');
+                    nextSpan.style.position = 'absolute';
+                    nextSpan.style.left = '50%';
+                    nextSpan.style.transform = 'translateX(-50%)';
+                    nextSpan.style.fontSize = '0.6rem';
+                    nextSpan.innerText = nextText;
+                    td.appendChild(nextSpan);
+                }
+                
                 row.appendChild(td);
                 tbody.appendChild(row);
                 continue;
