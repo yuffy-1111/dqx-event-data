@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（完全リファクタ版・修正済み） ==========
+// ========== DQX日課チェッカー（最終版） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -11,7 +11,7 @@
 
     // ===== タスク定義（keyは一意、固定） =====
     const sectionsTemplate = [
-        { type: "section", label: "▼ 日課", sectionId: "daily-section", taskKey: null, cycleTaskId: null },
+        { type: "section", label: "▼ 日課", sectionId: "daily-section", taskKey: "section_daily", cycleTaskId: null },
         { name: "日替わり討伐", taskId: "daily", key: "daily1" },
         { name: "深淵の咎人(ﾗｸﾘﾏ)", taskId: "daily", key: "daily2" },
         { name: "深淵の咎人(果実)", taskId: "daily", key: "daily3" },
@@ -34,7 +34,7 @@
         { name: "黄昏の奏戦記", taskId: "tasogare", key: "tasogare" },
         { name: "レモンスライムクイズ", taskId: "lemon", key: "lemon" },
         
-        { type: "section", label: "▼ 隔週2", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
+        { type: "section", label: "▼ 邪神の宮殿", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
         { name: "邪神の宮殿", taskId: "jashin", key: "jashin" },
         
         { type: "section", label: "▼ 月1回", sectionId: "monthly-section", taskKey: "section_monthly", cycleTaskId: "monthly" },
@@ -46,10 +46,8 @@
         { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
         { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
         
-        { type: "section", label: "▼ 受け取り", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-section", taskKey: "section_receive", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
-        
-        { type: "section", label: "▼ 受け取り", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
         { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
     ];
 
@@ -86,11 +84,6 @@
 
     function getColColor(hex) {
         return isDarkMode() ? blendColor(hex, 0.25, [17, 24, 39]) : blendColor(hex, 0.30, [255, 255, 255]);
-    }
-
-    function getSectionHighlightColor() {
-        const redHex = '#dc2626';
-        return isDarkMode() ? blendColor(redHex, 0.25, [17, 24, 39]) : blendColor(redHex, 0.15, [255, 255, 255]);
     }
 
     function getJSTNow() {
@@ -232,8 +225,8 @@
             nextDate = new Date(last.getTime() + 72 * 60 * 60 * 1000);
             const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
             const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
-            if (diffDays <= 0) return `次回 ${nextStr}`;
-            return `次回 ${nextStr}（あと${diffDays}日）`;
+            if (diffDays <= 0) return `【次回 ${nextStr}】`;
+            return `【次回 ${nextStr}（あと${diffDays}日）】`;
         }
         
         if (taskId === 'konmeiku') {
@@ -247,15 +240,15 @@
             }
             const diffDays = Math.ceil((nextStart - now) / (1000 * 60 * 60 * 24));
             const nextStr = `${nextStart.getMonth()+1}/${nextStart.getDate()}`;
-            if (diffDays <= 0) return `次回 ${nextStr}`;
-            return `次回 ${nextStr}（あと${diffDays}日）`;
+            if (diffDays <= 0) return `【次回 ${nextStr}】`;
+            return `【次回 ${nextStr}（あと${diffDays}日）】`;
         }
         
         nextDate = getNextUpdateDateForTask(taskId, effectiveNow);
         const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
         const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
-        if (diffDays <= 0) return `次回 ${nextStr}`;
-        return `次回 ${nextStr}（あと${diffDays}日）`;
+        if (diffDays <= 0) return `【次回 ${nextStr}】`;
+        return `【次回 ${nextStr}（あと${diffDays}日）】`;
     }
 
     // ===== パニガルム・昏冥庫関連 =====
@@ -300,8 +293,8 @@
         if (isOpen) {
             const bossIdx = getKonmeikuCycleIndex(target);
             let period = '';
-            if (day <= 5) period = `${formatDate(new Date(year, month, 1))}〜5日`;
-            else period = `${formatDate(new Date(year, month, 15))}〜20日`;
+            if (day <= 5) period = `${formatDate(new Date(year, month, 1))}〜${formatDate(new Date(year, month, 5))}`;
+            else period = `${formatDate(new Date(year, month, 15))}〜${formatDate(new Date(year, month, 20))}`;
             return { name: `昏冥庫パニガルム`, detail: `${KONMEIKU_BOSSES[bossIdx]} ${period}` };
         } else {
             let nextStart, nextEnd;
@@ -497,17 +490,18 @@
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
         html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
 
-        // 現世庫パニガルム
+        // パニガルムセクション
+        html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
+        
         const paniDetail = getPaniDetail(today);
         html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td>`;
         html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
 
-        // 昏冥庫パニガルム
         const konmeikuDetail = getKonmeikuDetail(today);
         html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td>`;
         html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
 
-        // イベント情報
+        // イベントセクション
         let events = [];
         try {
             const res = await fetch(EVENTS_URL, { cache: 'no-store' });
@@ -521,9 +515,12 @@
             console.error('イベント取得失敗:', e);
         }
 
-        for (const event of events) {
-            html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(event.name)}</td>`;
-            html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
+        if (events.length) {
+            html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ イベント</td></tr>';
+            for (const event of events) {
+                html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(event.name)}</td>`;
+                html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
+            }
         }
 
         html += '</tbody></table></div>';
@@ -571,7 +568,7 @@
             secTd.colSpan = 1 + characters.length;
             secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（毎日）</span><span style="font-size: 0.6rem; color: #888;"></span></span>`;
+            secTd.innerHTML = `<span>▼ イベント（毎日）</span>`;
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
@@ -659,7 +656,7 @@
             secTd.colSpan = 1 + characters.length;
             secTd.style.textAlign = 'left';
             secTd.style.padding = '3px 8px';
-            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（期間中1回）</span><span style="font-size: 0.6rem; color: #888;"></span></span>`;
+            secTd.innerHTML = `<span>▼ イベント（期間中1回）</span>`;
             secRow.appendChild(secTd);
             tbody.appendChild(secRow);
 
@@ -822,8 +819,9 @@
                 
                 const spanWrapper = document.createElement('span');
                 spanWrapper.style.display = 'flex';
+                spanWrapper.style.alignItems = 'center';
                 spanWrapper.style.width = '100%';
-                spanWrapper.innerHTML = `<span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; color: #888;">${escapeHtml(nextText)}</span>` : ''}`;
+                spanWrapper.innerHTML = `<span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; margin-left: 12px;">${escapeHtml(nextText)}</span>` : ''}`;
                 td.appendChild(spanWrapper);
                 row.appendChild(td);
                 tbody.appendChild(row);
@@ -929,8 +927,12 @@ th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
 thead tr th:first-child { position: sticky; left: 0; background-color: #e6edf4; z-index: 2; }
 tbody tr td:first-child { position: sticky; left: 0; background-color: #fafcff; z-index: 1; }
 .task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
-.section-row { background: #e9edf2; }
-.section-row td { padding: 3px 8px; font-size: 0.6rem; color: #5a6e85; }
+
+/* セクション行の視認性向上 */
+.section-row { background: #d1dbe8 !important; border-top: 1px solid #b0c0d0; border-bottom: 1px solid #b0c0d0; }
+.section-row td { color: #1e3a5f !important; font-weight: bold; font-size: 0.65rem; }
+.detail-section-row td { background: #e9edf2; font-weight: bold; }
+
 .char-header { min-width: 70px; }
 .char-header-content { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .char-name { display: inline-block; padding: 2px 4px; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 0.75rem; white-space: nowrap; }
@@ -966,14 +968,14 @@ body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #3741
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
 body.dark-mode tbody tr td:first-child { background: #111827 !important; }
 body.dark-mode thead tr th:first-child { background: #1f2937 !important; }
-body.dark-mode .section-row { background: #1f2937; }
-body.dark-mode .section-row td { color: #fff; }
+body.dark-mode .section-row { background: #2d3a4a !important; border-top: 1px solid #4a5a6a; border-bottom: 1px solid #4a5a6a; }
+body.dark-mode .section-row td { color: #ffffff !important; font-weight: bold; }
+body.dark-mode .detail-section-row td { background: #2d3a4a; }
 body.dark-mode .char-name { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .edit-mode-cell { background-color: #2a2a2a; }
 body.dark-mode .edit-button-enabled { background-color: #374151; border-color: #4b5563; color: #fff; }
 body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: #d97706; }
-body.dark-mode .section-row td span span { color: #fff !important; }
 </style>
 `;
 
@@ -995,7 +997,7 @@ body.dark-mode .section-row td span span { color: #fff !important; }
 <div style="overflow-x: auto;">
 <table id="mainTable">
 <thead id="tableHeader">
-<tr id="headerRow"><th>項目</th></td>
+<tr id="headerRow"><th>項目</th></tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
