@@ -40,6 +40,8 @@
         /* ツールとの間隔（これは別） */
         #dqx-tool-container {
             margin-top: 24px !important;
+            /* ★ スマートフォン用の下部パディング */
+            padding-bottom: 100px !important;
         }
         
         /* スマホ時 */
@@ -52,6 +54,7 @@
             }
             #dqx-tool-container {
                 margin-top: 16px !important;
+                padding-bottom: 120px !important;
             }
         }
     </style>
@@ -61,13 +64,13 @@
 <div id="dqx-app"></div>
 
 <script src="./launcher.js"></script>
-<script src="./tools/dqx-checker.js"></script>
+<script src="./tools/dqx-checker-mobile-fixed.js"></script>
 
 <script>
 window.addEventListener('load', function() {
     DQXTools.register('daily-checker', {
         name: 'コンテンツ<br>チェッカー',
-        url: './tools/dqx-checker-2.js',
+        url: './tools/dqx-checker-mobile-fixed.js',
         renderFn: 'DQXDailyChecker.render'
     });
     
