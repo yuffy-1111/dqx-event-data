@@ -36,7 +36,9 @@ const DQXTools = {
     applyDarkMode: function() {
         document.body.classList.toggle('dark-mode', this.darkMode);
         const btn = document.getElementById('global-dark-toggle');
-        if (btn) btn.textContent = this.darkMode ? '☀️' : '🌙';
+        if (btn) {
+            btn.textContent = this.darkMode ? '☀️' : '🌙';
+        }
     },
 
     toggleDarkMode: function() {
@@ -45,41 +47,51 @@ const DQXTools = {
         this.applyDarkMode();
     },
 
+    getButtonStyle: function() {
+        return `
+            flex: 1;
+            max-width: 160px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border: none !important;
+            border-radius: 40px !important;
+            background: #0066cc !important;
+            color: white !important;
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+    },
+
+    getToggleStyle: function() {
+        return `
+            width: 44px;
+            height: 44px;
+            border-radius: 50% !important;
+            border: none !important;
+            background: #0066cc !important;
+            color: white !important;
+            font-size: 18px;
+            cursor: pointer;
+            flex-shrink: 0;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transition: transform 0.1s;
+        `;
+    },
+
     showLauncher: function() {
+        const buttonStyle = this.getButtonStyle();
+        const toggleStyle = this.getToggleStyle();
+        
         const toolButtons = Object.entries(this.tools).map(([id, tool]) => {
-            return `<button onclick="DQXTools.loadTool('${id}')" style="
-                        flex: 1;
-                        max-width: 160px;
-                        padding: 10px 20px;
-                        font-size: 14px;
-                        font-weight: bold;
-                        border: none;
-                        border-radius: 40px;
-                        background: #0066cc;
-                        color: white;
-                        cursor: pointer;
-                        transition: transform 0.1s;
-                        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+            return `<button onclick="DQXTools.loadTool('${id}')" style="${buttonStyle}">
                         ${tool.name}
                     </button>`;
         }).join('');
         
-        // ダークモードトグルボタン
-        const darkToggle = `<button id="global-dark-toggle" style="
-                                width: 44px;
-                                height: 44px;
-                                border-radius: 50%;
-                                border: none;
-                                background: #0066cc;
-                                color: white;
-                                font-size: 18px;
-                                cursor: pointer;
-                                flex-shrink: 0;
-                                box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-                                transition: transform 0.1s;
-                            " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+        const darkToggle = `<button id="global-dark-toggle" style="${toggleStyle}">
                                 ${this.darkMode ? '☀️' : '🌙'}
                             </button>`;
         
@@ -114,11 +126,21 @@ const DQXTools = {
             `;
         }
         
-        // トグルボタンのイベントリスナーを設定
+        // イベントリスナー
         const toggleBtn = document.getElementById('global-dark-toggle');
         if (toggleBtn) {
             toggleBtn.onclick = () => this.toggleDarkMode();
+            
+            // ホバーエフェクト
+            toggleBtn.onmouseover = () => toggleBtn.style.transform = 'scale(1.02)';
+            toggleBtn.onmouseout = () => toggleBtn.style.transform = 'scale(1)';
         }
+        
+        // 全ボタンにホバーエフェクト
+        document.querySelectorAll('#dqx-app button[onclick*="loadTool"]').forEach(btn => {
+            btn.onmouseover = () => btn.style.transform = 'scale(1.02)';
+            btn.onmouseout = () => btn.style.transform = 'scale(1)';
+        });
     },
 
     loadTool: async function(toolId) {
