@@ -955,27 +955,80 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
 th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
 th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
-thead tr th:first-child { position: sticky; left: 0; background-color: #e6edf4; z-index: 2; }
-tbody tr td:first-child { position: sticky; left: 0; background-color: #fafcff; z-index: 1; }
-.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
-
-/* ===== セクション固定＆視認性 ===== */
-.section-row {
+/* ===== 列固定の完全修正 ===== */
+#mainTable {
     position: relative;
-    z-index: 3;
-    background: #b8c7da !important;
-    border-top: 2px solid #94a8c2;
-    border-bottom: 2px solid #94a8c2;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
 }
 
-.section-row td {
+#mainTable tbody {
+    display: block;
+    overflow-x: visible;
+}
+
+#mainTable thead {
+    display: block;
+}
+
+#mainTable tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+
+#mainTable th,
+#mainTable td {
+    display: table-cell;
+}
+
+#mainTable td:first-child,
+#mainTable th:first-child {
     position: sticky;
     left: 0;
-    z-index: 4;
-    background: inherit !important;
-    color: #1e3a5f !important;
-    font-weight: bold;
-    letter-spacing: 0.5px;
+    background-color: inherit;
+}
+
+#mainTable thead tr th:first-child {
+    background-color: #e6edf4;
+    z-index: 30;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+}
+
+#mainTable tbody tr:not(.section-row) td:first-child {
+    background-color: #fafcff;
+    z-index: 10;
+}
+
+#mainTable tbody tr.section-row td:first-child {
+    background-color: #b8c7da !important;
+    z-index: 20;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+}
+
+#mainTable td:first-child::after,
+#mainTable th:first-child::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -2px;
+    height: 100%;
+    width: 2px;
+    background: linear-gradient(to right, rgba(0,0,0,0.1), transparent);
+    pointer-events: none;
+}
+
+body.dark-mode #mainTable thead tr th:first-child {
+    background-color: #1f2937;
+}
+
+body.dark-mode #mainTable tbody tr:not(.section-row) td:first-child {
+    background-color: #111827;
+}
+
+body.dark-mode #mainTable tbody tr.section-row td:first-child {
+    background-color: #334155 !important;
 }
 
 .detail-section-row td { background: #e9edf2; font-weight: bold; }
