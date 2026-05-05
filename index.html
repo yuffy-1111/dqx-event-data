@@ -5,26 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>DQXツール</title>
     <style>
-        /* ===== ベースリセット ===== */
+        /* ===== 強制リセット ===== */
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
         
+        /* ★ これが重要：bodyの上部余白を固定 */
         body {
-            margin: 0;
-            padding: 20px 0 0 0;
+            margin: 0 !important;
+            padding: 20px 0 0 0 !important;
             background: #eef2f7;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         
-        /* ダークモード時のbody背景 */
         body.dark-mode {
             background: #0f172a;
+            padding: 20px 0 0 0 !important;
         }
         
-        /* ===== メインコンテナ ===== */
+        /* メインコンテナ */
         #dqx-app {
             max-width: 900px;
             margin: 0 auto;
@@ -32,55 +31,27 @@
             padding: 0 16px;
         }
         
-        /* ===== ランチャーとツールの間隔を固定 ===== */
+        /* ★ ランチャーの上の余白をゼロに強制 */
+        #dqx-app > div:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        
+        /* ツールとの間隔（これは別） */
         #dqx-tool-container {
-            margin-top: 28px !important;
+            margin-top: 24px !important;
         }
         
-        /* 各ツールの先頭要素の余白をリセット */
-        #dqx-tool-container > *:first-child {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
-        
-        /* ツール共通のコンテナ調整 */
-        #dqx-tool-container .container,
-        #dqx-tool-container .c {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
-        
-        /* ===== スマートフォン（768px以下） ===== */
+        /* スマホ時 */
         @media (max-width: 768px) {
             body {
-                padding: 8px 0 0 0;
+                padding: 12px 0 0 0 !important;
             }
             #dqx-app {
                 padding: 0 8px;
             }
             #dqx-tool-container {
                 margin-top: 16px !important;
-            }
-        }
-        
-        /* ===== タブレット（769px～1024px） ===== */
-        @media (min-width: 769px) and (max-width: 1024px) {
-            #dqx-app {
-                max-width: 95%;
-                padding: 0 20px;
-            }
-            #dqx-tool-container {
-                margin-top: 24px !important;
-            }
-        }
-        
-        /* ===== デスクトップ（1025px以上） ===== */
-        @media (min-width: 1025px) {
-            #dqx-app {
-                max-width: 900px;
-            }
-            #dqx-tool-container {
-                margin-top: 28px !important;
             }
         }
     </style>
