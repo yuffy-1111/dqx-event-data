@@ -1,12 +1,63 @@
-// ========== DQX日課チェッカー（GitHub収録版・destroy対応・スマホ表示修正） ==========
+// ========== DQX日課チェッカー（完全リファクタ版） ==========
 (function(global) {
-    // ===== ストレージキー（現状維持） =====
-    const STORAGE_CHARS = 'dqx_chars_final9';
-    const STORAGE_CHECK_PREFIX = 'dqx_check_final9_';
-    const STORAGE_DISABLED = 'dqx_disabled_final9';
-    const STORAGE_CHECKS = 'dqx_limited_checks_v2';
+    // ===== ストレージキー =====
+    const STORAGE_CHARS = 'dqx_chars_final10';
+    const STORAGE_CHECK_PREFIX = 'dqx_check_final10_';
+    const STORAGE_DISABLED = 'dqx_disabled_final10';
+    const STORAGE_HIDDEN = 'dqx_hidden_tasks_v1';
+    const STORAGE_CHECKS = 'dqx_limited_checks_v3';
     const EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/Checker.json';
     const RESET_HOUR = 6;
+
+    // ===== タスク定義（keyは一意、固定） =====
+    const sectionsTemplate = [
+        { type: "section", label: "▼ 日課", sectionId: "daily-section", taskKey: null, cycleTaskId: null },
+        { name: "日替わり討伐", taskId: "daily", key: "daily1" },
+        { name: "深淵の咎人(ﾗｸﾘﾏ)", taskId: "daily", key: "daily2" },
+        { name: "深淵の咎人(果実)", taskId: "daily", key: "daily3" },
+        { name: "聖守護者の闘戦記", taskId: "daily", key: "daily4" },
+        
+        { type: "section", label: "▼ 週課", sectionId: "weekly-section", taskKey: "section_weekly", cycleTaskId: "weekly" },
+        { name: "週替わり討伐", taskId: "weekly", key: "weekly1" },
+        { name: "エピソード依頼帳", taskId: "weekly", key: "weekly2" },
+        { name: "トレーニー育成帳", taskId: "weekly", key: "weekly3" },
+        { name: "達人クエスト", taskId: "weekly", key: "weekly4" },
+        { name: "王家の迷宮", taskId: "weekly", key: "weekly5" },
+        { name: "ピラミッド", taskId: "weekly", key: "weekly6" },
+        { name: "万魔の塔", taskId: "weekly", key: "weekly7" },
+        { name: "アスタルジア探索", taskId: "weekly", key: "weekly8" },
+        { name: "皇帝の創りしもの", taskId: "weekly", key: "weekly9" },
+        { name: "ヴァリーブートキャンプ", taskId: "weekly", key: "weekly10" },
+        
+        { type: "section", label: "▼ 隔週", sectionId: "biweekly-section", taskKey: "section_biweekly", cycleTaskId: "roster" },
+        { name: "ロスターのお題", taskId: "roster", key: "roster" },
+        { name: "黄昏の奏戦記", taskId: "tasogare", key: "tasogare" },
+        { name: "レモンスライムクイズ", taskId: "lemon", key: "lemon" },
+        
+        { type: "section", label: "▼ 邪神の宮殿", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
+        { name: "邪神の宮殿", taskId: "jashin", key: "jashin" },
+        
+        { type: "section", label: "▼ 月1回", sectionId: "monthly-section", taskKey: "section_monthly", cycleTaskId: "monthly" },
+        { name: "異界の闘技場", taskId: "monthly", key: "monthly1" },
+        
+        { type: "section", label: "▼ 周期", sectionId: "period-section", taskKey: "section_period", cycleTaskId: "pani" },
+        { name: "現世庫パニガルム", taskId: "pani", key: "pani" },
+        
+        { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
+        { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
+        
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-section", taskKey: "section_receive", cycleTaskId: "sekkai" },
+        { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
+        { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
+    ];
+
+    // イベントセクション用のテンプレート（動的生成時に使用）
+    const eventSections = [
+        { type: "section", label: "▼ イベント（毎日）", sectionId: "event-daily-section", taskKey: "section_event_daily" },
+        { type: "section", label: "▼ イベント（その他）", sectionId: "event-other-section", taskKey: "section_event_other" }
+    ];
+
+    function getTaskCount() { return sectionsTemplate.filter(item => !item.type).length; }
 
     // ===== 共通ユーティリティ =====
     function escapeHtml(str) {
@@ -42,11 +93,6 @@
     }
 
     function getSectionHighlightColor() {
-        const redHex = '#dc2626';
-        return isDarkMode() ? blendColor(redHex, 0.25, [17, 24, 39]) : blendColor(redHex, 0.15, [255, 255, 255]);
-    }
-
-    function getEventSectionHighlightColor() {
         const redHex = '#dc2626';
         return isDarkMode() ? blendColor(redHex, 0.25, [17, 24, 39]) : blendColor(redHex, 0.15, [255, 255, 255]);
     }
@@ -179,11 +225,48 @@
         return next;
     }
 
+    // セクション用の次回表示テキストを取得
+    function getSectionNextText(taskId, targetDate) {
+        if (!taskId) return '';
+        const effectiveNow = getEffectiveDate(targetDate);
+        let nextDate;
+        
+        if (taskId === 'pani') {
+            const last = getLastUpdateDateForTask('pani', effectiveNow);
+            nextDate = new Date(last.getTime() + 72 * 60 * 60 * 1000);
+            const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
+            const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()} ${nextDate.getHours()}:00`;
+            if (diffDays <= 0) return `次回 ${nextStr}`;
+            return `次回 ${nextStr}（あと${diffDays}日）`;
+        }
+        
+        if (taskId === 'konmeiku') {
+            const now = getEffectiveDate(targetDate);
+            const day = now.getDate();
+            let nextStart;
+            if (day < 15) {
+                nextStart = new Date(now.getFullYear(), now.getMonth(), 15, 6, 0, 0);
+            } else {
+                nextStart = new Date(now.getFullYear(), now.getMonth() + 1, 1, 6, 0, 0);
+            }
+            const diffDays = Math.ceil((nextStart - now) / (1000 * 60 * 60 * 24));
+            const nextStr = `${nextStart.getMonth()+1}/${nextStart.getDate()}`;
+            if (diffDays <= 0) return `次回 ${nextStr}`;
+            return `次回 ${nextStr}（あと${diffDays}日）`;
+        }
+        
+        nextDate = getNextUpdateDateForTask(taskId, effectiveNow);
+        const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
+        const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
+        if (diffDays <= 0) return `次回 ${nextStr}`;
+        return `次回 ${nextStr}（あと${diffDays}日）`;
+    }
+
     // ===== パニガルム・昏冥庫関連 =====
     const PANI_BOSSES = ['ﾌｫﾙﾀﾞｲﾅ','ﾀﾞｲﾀﾞﾙﾓｽ','ﾊﾟﾆｶﾞｷｬｯﾁｬｰ','ﾌﾙﾎﾟﾃｨ','ﾌﾟﾙﾀﾇｽ','ｴﾙｷﾞｵｽ','ｱﾙﾏﾅ','ｼﾞｹﾞﾝﾘｭｳ'];
     const PANI_BASE = new Date(2026, 3, 12, 6, 0, 0);
     
-    function getPaniStatus(targetDate) {
+    function getPaniDetail(targetDate) {
         const target = getEffectiveDate(targetDate);
         const hours = (target - PANI_BASE) / (1000 * 60 * 60);
         let cycle = Math.floor(hours / 72);
@@ -191,9 +274,8 @@
         const bossIdx = ((cycle % 8) + 8) % 8;
         const startDate = new Date(PANI_BASE.getTime() + cycle * 72 * 60 * 60 * 1000);
         const endDate = new Date(startDate.getTime() + 72 * 60 * 60 * 1000);
-        const isUpdate = isSameDay(startDate, target);
-        function formatDate(d) { return (d.getMonth()+1) + '/' + d.getDate(); }
-        return { statusStr: PANI_BOSSES[bossIdx] + ' ' + formatDate(startDate) + '〜' + formatDate(endDate), isAlert: isUpdate };
+        function formatDate(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
+        return { name: `現世庫パニガルム`, detail: `${PANI_BOSSES[bossIdx]} ${formatDate(startDate)}〜${formatDate(endDate)}` };
     }
 
     const KONMEIKU_BOSSES = ['ﾊﾟﾆｽﾗｲﾑ', 'ｼﾞｪﾛﾄﾞｰﾗ', 'ﾌｫﾙｶﾞﾉｽ', 'ﾏｳﾌﾗｰﾄ'];
@@ -212,100 +294,32 @@
         return ((count - 1) % 4 + 4) % 4;
     }
     
-    function getKonmeikuStatus(targetDate) {
+    function getKonmeikuDetail(targetDate) {
         const target = getEffectiveDate(targetDate);
         const day = target.getDate();
         const year = target.getFullYear();
         const month = target.getMonth();
         const isOpen = (day >= 1 && day <= 5) || (day >= 15 && day <= 20);
-        function formatDate(d) { return (d.getMonth()+1) + '/' + d.getDate(); }
+        function formatDate(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
         if (isOpen) {
             const bossIdx = getKonmeikuCycleIndex(target);
-            let statusStr = '';
-            if (day <= 5) statusStr = '🌑' + KONMEIKU_BOSSES[bossIdx] + ' ' + formatDate(new Date(year, month, 1)) + '〜5日';
-            else statusStr = '🌑' + KONMEIKU_BOSSES[bossIdx] + ' ' + formatDate(new Date(year, month, 15)) + '〜20日';
-            return { statusStr: statusStr, isAlert: true, closedClass: false, isOpen: true };
+            let period = '';
+            if (day <= 5) period = `${formatDate(new Date(year, month, 1))}〜5日`;
+            else period = `${formatDate(new Date(year, month, 15))}〜20日`;
+            return { name: `昏冥庫パニガルム`, detail: `🌑${KONMEIKU_BOSSES[bossIdx]} ${period}` };
         } else {
             let nextStart, nextEnd;
             if (day < 15) { nextStart = new Date(year, month, 15); nextEnd = new Date(year, month, 20); }
             else { nextStart = new Date(year, month + 1, 1); nextEnd = new Date(year, month + 1, 5); }
-            return { statusStr: '未開催（次回 ' + formatDate(nextStart) + '〜' + formatDate(nextEnd) + '）', isAlert: false, closedClass: true, isOpen: false };
+            return { name: `昏冥庫パニガルム`, detail: `未開催（次回 ${formatDate(nextStart)}〜${formatDate(nextEnd)}）` };
         }
     }
-
-    function computeContentStatus(targetDate, taskId, taskName) {
-        const effectiveNow = getEffectiveDate(targetDate);
-        function formatDate(d) { return (d.getMonth()+1) + '/' + d.getDate(); }
-        if (taskId === 'daily') return { statusStr: "毎日リセット", isAlert: false };
-        if (taskId === 'pani') return getPaniStatus(targetDate);
-        if (taskId === 'konmeiku') return getKonmeikuStatus(targetDate);
-        const lastUpdate = getLastUpdateDateForTask(taskId, effectiveNow);
-        const nextUpdate = getNextUpdateDateForTask(taskId, effectiveNow);
-        const statusStr = formatDate(lastUpdate) + '更新 / 次回 ' + formatDate(nextUpdate);
-        const isAlert = isSameDay(lastUpdate, effectiveNow);
-        return { statusStr, isAlert };
-    }
-
-    function getUpdateNoticeList(targetDate) {
-        const effectiveNow = getEffectiveDate(targetDate);
-        const list = [];
-        function isSameDayForList(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
-        if (isSameDayForList(getLastUpdateDateForTask('weekly', effectiveNow), effectiveNow)) list.push('週課');
-        if (isSameDayForList(getLastUpdateDateForTask('roster', effectiveNow), effectiveNow)) list.push('ロスター');
-        if (isSameDayForList(getLastUpdateDateForTask('tasogare', effectiveNow), effectiveNow)) list.push('黄昏の奏戦記');
-        if (isSameDayForList(getLastUpdateDateForTask('jashin', effectiveNow), effectiveNow)) list.push('邪神の宮殿');
-        if (getPaniStatus(targetDate).isAlert) list.push('パニガルム');
-        const konmeikuStatus = getKonmeikuStatus(targetDate);
-        if (konmeikuStatus.isAlert) {
-            const day = getEffectiveDate(targetDate).getDate();
-            const isFirstDay = (day === 1 || day === 15);
-            if (isFirstDay) list.push('昏冥庫');
-        }
-        if (isSameDayForList(getLastUpdateDateForTask('monthly', effectiveNow), effectiveNow)) list.push('異界の闘技場');
-        if (isSameDayForList(getLastUpdateDateForTask('sekkai', effectiveNow), effectiveNow)) list.push('覚醒の秘石');
-        if (isSameDayForList(getLastUpdateDateForTask('monthly', effectiveNow), effectiveNow)) list.push('宝珠P(ふくびき)');
-        return list;
-    }
-
-    // ===== テーブル定義 =====
-    const sectionsTemplate = [
-        { type: "section", label: "▼ 日課", sectionId: "daily-section" },
-        { name: "日替わり討伐", taskId: "daily" },
-        { name: "咎人デイリー", taskId: "daily" },
-        { type: "section", label: "▼ 週課", sectionId: "weekly-section" },
-        { name: "週替わり討伐", taskId: "weekly" },
-        { name: "エピソード依頼帳", taskId: "weekly" },
-        { name: "トレーニー育成帳", taskId: "weekly" },
-        { name: "達人クエスト", taskId: "weekly" },
-        { name: "王家の迷宮", taskId: "weekly" },
-        { name: "ピラミッド", taskId: "weekly" },
-        { name: "万魔の塔", taskId: "weekly" },
-        { name: "アスタルジア探索", taskId: "weekly" },
-        { name: "皇帝の創りしもの", taskId: "weekly" },
-        { name: "ヴァリーブートキャンプ", taskId: "weekly" },
-        { type: "section", label: "▼ 隔週", sectionId: "biweekly-section" },
-        { name: "ロスター", taskId: "roster" },
-        { name: "黄昏の奏戦記", taskId: "tasogare" },
-        { name: "レモンスライムクイズ", taskId: "lemon" },
-        { type: "section", label: "▼ 邪神の宮殿", sectionId: "jashin-section" },
-        { name: "邪神の宮殿", taskId: "jashin" },
-        { type: "section", label: "▼ 周期", sectionId: "period-section" },
-        { name: "パニガルム", taskId: "pani" },
-        { type: "section", label: "▼ 期間限定", sectionId: "limited-section" },
-        { name: "昏冥庫", taskId: "konmeiku" },
-        { type: "section", label: "▼ 月1回", sectionId: "monthly-section" },
-        { name: "異界の闘技場", taskId: "monthly" },
-        { type: "section", label: "▼ 受け取り", sectionId: "receive-section" },
-        { name: "覚醒の秘石", taskId: "sekkai" },
-        { name: "宝珠P(ふくびき)", taskId: "monthly" }
-    ];
-
-    function getTaskCount() { return sectionsTemplate.filter(item => !item.type).length; }
 
     // ===== キャラクター管理 =====
     let characters = [];
     let nextId = 1;
     let disabledMap = new Map();
+    let hiddenMap = new Map();
     let isEditMode = false;
     let currentObserver = null;
 
@@ -319,6 +333,7 @@
         }
     }
     function saveCharacters() { localStorage.setItem(STORAGE_CHARS, JSON.stringify(characters)); }
+    
     function loadDisabled() {
         const saved = localStorage.getItem(STORAGE_DISABLED);
         if (saved) {
@@ -326,14 +341,30 @@
         }
     }
     function saveDisabled() { localStorage.setItem(STORAGE_DISABLED, JSON.stringify(Object.fromEntries(disabledMap))); }
-    function isDisabled(rowIdx, charId) { return disabledMap.has(`${rowIdx}_${charId}`); }
-    function setDisabled(rowIdx, charId, disabled) {
-        const key = `${rowIdx}_${charId}`;
+    function isDisabled(taskKey, charId) { return disabledMap.has(`${taskKey}_${charId}`); }
+    function setDisabled(taskKey, charId, disabled) {
+        const key = `${taskKey}_${charId}`;
         if (disabled) disabledMap.set(key, true);
         else disabledMap.delete(key);
         saveDisabled();
     }
-    function toggleDisabled(rowIdx, charId) { setDisabled(rowIdx, charId, !isDisabled(rowIdx, charId)); renderAll(); }
+    function toggleDisabled(taskKey, charId) { setDisabled(taskKey, charId, !isDisabled(taskKey, charId)); renderAll(); }
+
+    function loadHidden() {
+        const saved = localStorage.getItem(STORAGE_HIDDEN);
+        if (saved) {
+            try { hiddenMap = new Map(Object.entries(JSON.parse(saved))); } catch(e) { hiddenMap = new Map(); }
+        }
+    }
+    function saveHidden() { localStorage.setItem(STORAGE_HIDDEN, JSON.stringify(Object.fromEntries(hiddenMap))); }
+    function isHidden(taskKey) { return hiddenMap.has(taskKey); }
+    function setHidden(taskKey, hidden) {
+        if (hidden) hiddenMap.set(taskKey, true);
+        else hiddenMap.delete(taskKey);
+        saveHidden();
+        renderAll();
+    }
+    function toggleHidden(taskKey) { setHidden(taskKey, !isHidden(taskKey)); }
 
     function addCharacter() {
         const nameInput = document.getElementById('newCharName');
@@ -346,7 +377,9 @@
         renderAll();
     }
     function deleteCharacter(charId) {
-        for (let i = 0; i < getTaskCount(); i++) setDisabled(i, charId, false);
+        for (const item of sectionsTemplate) {
+            if (!item.type) setDisabled(item.key, charId, false);
+        }
         characters = characters.filter(c => c.id !== charId);
         saveCharacters();
         renderAll();
@@ -373,14 +406,14 @@
         return lastCheckedDate < lastUpdate;
     }
 
-    function saveCheck(rowIdx, charId, checked, todayDate) {
-        const key = STORAGE_CHECK_PREFIX + rowIdx + '_' + charId;
+    function saveCheck(taskKey, charId, checked, todayDate) {
+        const key = STORAGE_CHECK_PREFIX + taskKey + '_' + charId;
         const data = { checked: checked, lastDate: getDateKey(todayDate) };
         localStorage.setItem(key, JSON.stringify(data));
     }
 
-    function loadCheck(rowIdx, charId, todayDate, taskId) {
-        const key = STORAGE_CHECK_PREFIX + rowIdx + '_' + charId;
+    function loadCheck(taskKey, charId, todayDate, taskId) {
+        const key = STORAGE_CHECK_PREFIX + taskKey + '_' + charId;
         const raw = localStorage.getItem(key);
         if (!raw) return false;
         try {
@@ -388,44 +421,14 @@
             if (!data.checked) return false;
             const lastDate = parseDateKey(data.lastDate);
             if (shouldReset(lastDate, todayDate, taskId)) {
-                saveCheck(rowIdx, charId, false, todayDate);
+                saveCheck(taskKey, charId, false, todayDate);
                 return false;
-            }
-            if (!isSameDay(lastDate, todayDate)) {
-                saveCheck(rowIdx, charId, true, todayDate);
             }
             return true;
         } catch(e) { return false; }
     }
 
-    // ===== セクション強調判定 =====
-    function isWeeklySectionHighlight(today) {
-        const effectiveNow = getEffectiveDate(today);
-        return isSameDay(getLastUpdateDateForTask('weekly', effectiveNow), effectiveNow);
-    }
-    function isBiweeklySectionHighlight(today) {
-        const effectiveNow = getEffectiveDate(today);
-        return isSameDay(getLastUpdateDateForTask('roster', effectiveNow), effectiveNow) ||
-               isSameDay(getLastUpdateDateForTask('tasogare', effectiveNow), effectiveNow) ||
-               isSameDay(getLastUpdateDateForTask('lemon', effectiveNow), effectiveNow);
-    }
-    function isJashinSectionHighlight(today) {
-        const effectiveNow = getEffectiveDate(today);
-        return isSameDay(getLastUpdateDateForTask('jashin', effectiveNow), effectiveNow);
-    }
-    function isPeriodSectionHighlight(today) { return getPaniStatus(today).isAlert; }
-    function isLimitedSectionHighlight(today) { return getKonmeikuStatus(today).isOpen; }
-    function isMonthlySectionHighlight(today) {
-        const effectiveNow = getEffectiveDate(today);
-        return isSameDay(getLastUpdateDateForTask('monthly', effectiveNow), effectiveNow);
-    }
-    function isReceiveSectionHighlight(today) {
-        const effectiveNow = getEffectiveDate(today);
-        return isSameDay(getLastUpdateDateForTask('sekkai', effectiveNow), effectiveNow) ||
-               isSameDay(getLastUpdateDateForTask('monthly', effectiveNow), effectiveNow);
-    }
-
-    // ===== イベントセクション関連関数 =====
+    // ===== イベント関連 =====
     function isEventActive(event, now) {
         const start = parseToJST(event.startDateTime || event.startDate);
         const end = parseToJST(event.endDateTime || event.endDate);
@@ -437,20 +440,13 @@
         const start = parseToJST(event.startDateTime || event.startDate);
         const end = parseToJST(event.endDateTime || event.endDate);
         if (!start || !end) return '期間不明';
-        const fmt = (d) => {
+        const fmtDateTime = (d) => {
             const h = d.getHours(), m = d.getMinutes();
             const base = `${d.getMonth()+1}/${d.getDate()}`;
-            return (h === 0 && m === 0 && !event.startDateTime && !event.endDateTime) ? base : `${base} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+            if (h === 0 && m === 0) return base;
+            return `${base} ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
         };
-        return `${fmt(start)}〜${fmt(end)}`;
-    }
-
-    function getResetLabel(event) {
-        switch(event.resetType) {
-            case 'daily': return '毎日リセット(6時)';
-            case 'weekly': return '毎週リセット(6時)';
-            default: return '期間中1回';
-        }
+        return `${fmtDateTime(start)}〜${fmtDateTime(end)}`;
     }
 
     function getLimCheckKey(eventId, charId, periodKey) {
@@ -485,19 +481,6 @@
         if (checked) localStorage.setItem(getLimCheckKey(event.id, charId, 'last_date'), today.toISOString());
     }
 
-    function cleanupOldEventChecks(currentEvents) {
-        const activeEventIds = new Set(currentEvents.map(e => String(e.id)));
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(STORAGE_CHECKS)) {
-                const match = key.match(/dqx_limited_checks_v2_(\d+)_/);
-                if (match && !activeEventIds.has(match[1])) {
-                    localStorage.removeItem(key);
-                }
-            }
-        }
-    }
-
     function validateEventData(data) {
         if (!data || typeof data !== 'object') return false;
         if (!Array.isArray(data.events)) return false;
@@ -509,102 +492,46 @@
         return true;
     }
 
-    function shouldHighlightEventSection(events, today) {
-        return events.some(event => {
-            if (!isEventActive(event, today)) return false;
-            if (event.resetType === 'daily') return true;
-            const start = parseToJST(event.startDateTime || event.startDate);
-            if (start && isSameDay(start, today)) return true;
-            return false;
-        });
-    }
-
-    async function appendLimitedRows() {
+    // ===== 詳細テーブル描画 =====
+    async function renderDetailTable() {
         const today = getJSTNow();
-        const tbody = document.getElementById('tableBody');
-        if (!tbody) return;
+        const detailContainer = document.getElementById('detailTableContainer');
+        if (!detailContainer) return;
 
-        const existingSections = tbody.querySelectorAll('tr.section-row');
-        for (let i = 0; i < existingSections.length; i++) {
-            const row = existingSections[i];
-            if (row.innerText.includes('イベント')) {
-                let nextRow = row.nextSibling;
-                tbody.removeChild(row);
-                while (nextRow && nextRow.tagName === 'TR' && !nextRow.classList.contains('section-row')) {
-                    const toRemove = nextRow;
-                    nextRow = nextRow.nextSibling;
-                    tbody.removeChild(toRemove);
-                }
-                break;
-            }
-        }
+        let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
+        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
 
+        // イベント情報
         let events = [];
         try {
             const res = await fetch(EVENTS_URL, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            if (!validateEventData(data)) {
-                console.warn('イベントJSONの形式が不正です');
-                return;
+            if (res.ok) {
+                const data = await res.json();
+                if (validateEventData(data)) {
+                    events = data.events.filter(e => isEventActive(e, today));
+                }
             }
-            events = data.events.filter(e => isEventActive(e, today));
-            cleanupOldEventChecks(events);
         } catch(e) {
             console.error('イベント取得失敗:', e);
-            return;
         }
-
-        if (!events.length) return;
-
-        const highlightEventSection = shouldHighlightEventSection(events, today);
-        const secRow = document.createElement('tr');
-        secRow.className = 'section-row';
-        if (highlightEventSection) {
-            secRow.classList.add('section-highlight');
-            secRow.style.backgroundColor = getEventSectionHighlightColor();
-        }
-        const secTd = document.createElement('td');
-        secTd.colSpan = 2 + characters.length;
-        secTd.style.textAlign = 'center';
-        secTd.style.padding = '3px';
-        secTd.innerText = '▼ イベント';
-        secRow.appendChild(secTd);
-        tbody.appendChild(secRow);
 
         for (const event of events) {
-            const row = document.createElement('tr');
-            const tdName = document.createElement('td');
-            tdName.className = 'task-name';
-            tdName.innerText = event.name;
-            row.appendChild(tdName);
-
-            const tdStatus = document.createElement('td');
-            tdStatus.className = 'status-cell';
-            const periodStr = getEventPeriodStr(event);
-            const resetLabel = getResetLabel(event);
-            const startDate = parseToJST(event.startDateTime || event.startDate);
-            const isStartDay = startDate && isSameDay(startDate, today);
-            const isDailyReset = (event.resetType === 'daily');
-            const showAlert = isDailyReset || isStartDay;
-            tdStatus.innerHTML = `<span class="status-chip">${escapeHtml(periodStr)}<br>${escapeHtml(resetLabel)}</span>${showAlert ? '<span class="alert-badge">!</span>' : ''}`;
-            row.appendChild(tdStatus);
-
-            for (const ch of characters) {
-                const td = document.createElement('td');
-                const colBg = getColColor(ch.color);
-                td.style.backgroundColor = colBg;
-                const cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.checked = isLimChecked(event, ch.id, today);
-                cb.addEventListener('change', (function(ev, cid) {
-                    return function(e) { setLimChecked(ev, cid, e.target.checked, getJSTNow()); };
-                })(event, ch.id));
-                td.appendChild(cb);
-                row.appendChild(td);
-            }
-            tbody.appendChild(row);
+            html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(event.name)}</td>`;
+            html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
         }
+
+        // パニガルム詳細
+        const paniDetail = getPaniDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
+
+        // 昏冥庫詳細
+        const konmeikuDetail = getKonmeikuDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
+
+        html += '</tbody></table></div>';
+        detailContainer.innerHTML = html;
     }
 
     // ===== メイン描画関数 =====
@@ -621,30 +548,202 @@
         renderAll();
     }
 
+    // イベントセクションと行を描画
+    async function renderEventRows(tbody, targetDate) {
+        let events = [];
+        try {
+            const res = await fetch(EVENTS_URL, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (!validateEventData(data)) return;
+            events = data.events.filter(e => isEventActive(e, targetDate));
+        } catch(e) {
+            console.error('イベント取得失敗:', e);
+            return;
+        }
+
+        if (!events.length) return;
+
+        const dailyEvents = events.filter(e => e.resetType === 'daily');
+        const otherEvents = events.filter(e => e.resetType !== 'daily');
+
+        // 毎日イベントセクション
+        if (dailyEvents.length) {
+            const secRow = document.createElement('tr');
+            secRow.className = 'section-row';
+            const secTd = document.createElement('td');
+            secTd.colSpan = 1 + characters.length;
+            secTd.style.textAlign = 'left';
+            secTd.style.padding = '3px 8px';
+            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（毎日）</span></span>`;
+            secRow.appendChild(secTd);
+            tbody.appendChild(secRow);
+
+            for (const event of dailyEvents) {
+                if (isHidden(`event_${event.id}`)) continue;
+                const row = document.createElement('tr');
+                const tdName = document.createElement('td');
+                tdName.className = 'task-name';
+                tdName.style.display = 'flex';
+                tdName.style.alignItems = 'center';
+                tdName.style.gap = '6px';
+                
+                if (isEditMode) {
+                    const hideBtn = document.createElement('button');
+                    hideBtn.innerText = isHidden(`event_${event.id}`) ? '👁‍🗨' : '👁';
+                    hideBtn.style.width = '28px';
+                    hideBtn.style.height = '28px';
+                    hideBtn.style.borderRadius = '8px';
+                    hideBtn.style.cursor = 'pointer';
+                    hideBtn.style.fontSize = '14px';
+                    hideBtn.style.backgroundColor = isHidden(`event_${event.id}`) ? '#f59e0b' : '#e2e8f0';
+                    hideBtn.style.border = '1px solid #cbd5e1';
+                    hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
+                    tdName.appendChild(hideBtn);
+                }
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = event.name;
+                tdName.appendChild(nameSpan);
+                row.appendChild(tdName);
+
+                for (const ch of characters) {
+                    const td = document.createElement('td');
+                    const colBg = getColColor(ch.color);
+                    td.style.backgroundColor = colBg;
+                    
+                    const disabled = isDisabled(`event_${event.id}`, ch.id);
+                    
+                    if (isEditMode) {
+                        const editButton = document.createElement('div');
+                        editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
+                        editButton.innerText = disabled ? '🔒' : '🔓';
+                        editButton.onclick = (function(ev, cid) {
+                            return function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleDisabled(`event_${ev.id}`, cid);
+                                return false;
+                            };
+                        })(event, ch.id);
+                        td.appendChild(editButton);
+                    } else {
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        if (disabled) {
+                            cb.disabled = true;
+                            cb.classList.add('disabled-checkbox');
+                        } else {
+                            cb.checked = isLimChecked(event, ch.id, targetDate);
+                            cb.addEventListener('change', (function(ev, cid, d) {
+                                return function(e) {
+                                    setLimChecked(ev, cid, e.target.checked, d);
+                                };
+                            })(event, ch.id, targetDate));
+                        }
+                        td.appendChild(cb);
+                    }
+                    row.appendChild(td);
+                }
+                tbody.appendChild(row);
+            }
+        }
+
+        // その他イベントセクション
+        if (otherEvents.length) {
+            const secRow = document.createElement('tr');
+            secRow.className = 'section-row';
+            const secTd = document.createElement('td');
+            secTd.colSpan = 1 + characters.length;
+            secTd.style.textAlign = 'left';
+            secTd.style.padding = '3px 8px';
+            secTd.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>▼ イベント（その他）</span></span>`;
+            secRow.appendChild(secTd);
+            tbody.appendChild(secRow);
+
+            for (const event of otherEvents) {
+                if (isHidden(`event_${event.id}`)) continue;
+                const row = document.createElement('tr');
+                const tdName = document.createElement('td');
+                tdName.className = 'task-name';
+                tdName.style.display = 'flex';
+                tdName.style.alignItems = 'center';
+                tdName.style.gap = '6px';
+                
+                if (isEditMode) {
+                    const hideBtn = document.createElement('button');
+                    hideBtn.innerText = isHidden(`event_${event.id}`) ? '👁‍🗨' : '👁';
+                    hideBtn.style.width = '28px';
+                    hideBtn.style.height = '28px';
+                    hideBtn.style.borderRadius = '8px';
+                    hideBtn.style.cursor = 'pointer';
+                    hideBtn.style.fontSize = '14px';
+                    hideBtn.style.backgroundColor = isHidden(`event_${event.id}`) ? '#f59e0b' : '#e2e8f0';
+                    hideBtn.style.border = '1px solid #cbd5e1';
+                    hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
+                    tdName.appendChild(hideBtn);
+                }
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = event.name;
+                tdName.appendChild(nameSpan);
+                row.appendChild(tdName);
+
+                for (const ch of characters) {
+                    const td = document.createElement('td');
+                    const colBg = getColColor(ch.color);
+                    td.style.backgroundColor = colBg;
+                    
+                    const disabled = isDisabled(`event_${event.id}`, ch.id);
+                    
+                    if (isEditMode) {
+                        const editButton = document.createElement('div');
+                        editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
+                        editButton.innerText = disabled ? '🔒' : '🔓';
+                        editButton.onclick = (function(ev, cid) {
+                            return function(e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toggleDisabled(`event_${ev.id}`, cid);
+                                return false;
+                            };
+                        })(event, ch.id);
+                        td.appendChild(editButton);
+                    } else {
+                        const cb = document.createElement('input');
+                        cb.type = 'checkbox';
+                        if (disabled) {
+                            cb.disabled = true;
+                            cb.classList.add('disabled-checkbox');
+                        } else {
+                            cb.checked = isLimChecked(event, ch.id, targetDate);
+                            cb.addEventListener('change', (function(ev, cid, d) {
+                                return function(e) {
+                                    setLimChecked(ev, cid, e.target.checked, d);
+                                };
+                            })(event, ch.id, targetDate));
+                        }
+                        td.appendChild(cb);
+                    }
+                    row.appendChild(td);
+                }
+                tbody.appendChild(row);
+            }
+        }
+    }
+
     function renderAll() {
         const targetDate = getJSTNow();
         const effectiveDate = getEffectiveDate(targetDate);
-        const displayDate = targetDate;
         
         const todayInfo = document.getElementById('todayInfo');
         if (todayInfo) {
-            todayInfo.innerHTML = '<div>📆 ' + (displayDate.getMonth()+1) + '/' + displayDate.getDate() + '</div><div>✅ 各6時リセット</div>';
-        }
-
-        const updateList = getUpdateNoticeList(effectiveDate);
-        const noticeDiv = document.getElementById('updateNotice');
-        if (noticeDiv) {
-            if (updateList.length) {
-                noticeDiv.style.display = 'block';
-                noticeDiv.innerHTML = '✅ 今日は ' + updateList.join('・') + ' の更新日です！';
-            } else {
-                noticeDiv.style.display = 'none';
-            }
+            todayInfo.innerHTML = '<div>📆 ' + (targetDate.getMonth()+1) + '/' + targetDate.getDate() + '</div><div>✅ 各6時リセット</div>';
         }
 
         const headerRow = document.getElementById('headerRow');
         if (headerRow) {
-            while (headerRow.children.length > 2) headerRow.removeChild(headerRow.lastChild);
+            while (headerRow.children.length > 1) headerRow.removeChild(headerRow.lastChild);
             for (let ch of characters) {
                 const colBg = getColColor(ch.color);
                 const th = document.createElement('th');
@@ -680,96 +779,100 @@
         const tbody = document.getElementById('tableBody');
         if (!tbody) return;
         tbody.innerHTML = '';
-        let rowIdx = 0;
-
-        const sectionHighlightMap = {
-            'weekly-section': isWeeklySectionHighlight(targetDate),
-            'biweekly-section': isBiweeklySectionHighlight(targetDate),
-            'jashin-section': isJashinSectionHighlight(targetDate),
-            'period-section': isPeriodSectionHighlight(targetDate),
-            'limited-section': isLimitedSectionHighlight(targetDate),
-            'monthly-section': isMonthlySectionHighlight(targetDate),
-            'receive-section': isReceiveSectionHighlight(targetDate)
-        };
 
         for (let item of sectionsTemplate) {
             if (item.type === 'section') {
+                if (isHidden(item.taskKey)) continue;
                 const row = document.createElement('tr');
                 row.className = 'section-row';
-                if (item.sectionId && sectionHighlightMap[item.sectionId]) {
-                    row.classList.add('section-highlight');
-                    row.style.backgroundColor = getSectionHighlightColor();
-                }
                 const td = document.createElement('td');
-                td.colSpan = 2 + characters.length;
-                td.style.textAlign = 'center';
-                td.style.padding = '3px';
-                td.innerText = item.label;
+                td.colSpan = 1 + characters.length;
+                td.style.textAlign = 'left';
+                td.style.padding = '3px 8px';
+                
+                const nextText = getSectionNextText(item.cycleTaskId, targetDate);
+                td.innerHTML = `<span style="display: flex; justify-content: space-between; width: 100%;"><span>${escapeHtml(item.label)}</span>${nextText ? `<span style="font-size: 0.6rem; color: #888;">${escapeHtml(nextText)}</span>` : ''}</span>`;
                 row.appendChild(td);
                 tbody.appendChild(row);
                 continue;
             }
 
+            if (isHidden(item.key)) continue;
+            
             const row = document.createElement('tr');
-            const { statusStr, isAlert, closedClass, isOpen } = computeContentStatus(targetDate, item.taskId, item.name);
-            if (closedClass) row.classList.add('konmeiku-closed');
-
             const tdName = document.createElement('td');
             tdName.className = 'task-name';
-            tdName.innerText = item.name;
+            tdName.style.display = 'flex';
+            tdName.style.alignItems = 'center';
+            tdName.style.gap = '6px';
+            
+            if (isEditMode) {
+                const hideBtn = document.createElement('button');
+                hideBtn.innerText = isHidden(item.key) ? '👁‍🗨' : '👁';
+                hideBtn.style.width = '28px';
+                hideBtn.style.height = '28px';
+                hideBtn.style.borderRadius = '8px';
+                hideBtn.style.cursor = 'pointer';
+                hideBtn.style.fontSize = '14px';
+                hideBtn.style.backgroundColor = isHidden(item.key) ? '#f59e0b' : '#e2e8f0';
+                hideBtn.style.border = '1px solid #cbd5e1';
+                hideBtn.onclick = (() => { toggleHidden(item.key); });
+                tdName.appendChild(hideBtn);
+            }
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = item.name;
+            tdName.appendChild(nameSpan);
             row.appendChild(tdName);
-
-            const tdStatus = document.createElement('td');
-            tdStatus.className = 'status-cell';
-            tdStatus.innerHTML = `<span class="status-chip">${escapeHtml(statusStr)}</span>${isAlert ? '<span class="alert-badge">!</span>' : ''}`;
-            row.appendChild(tdStatus);
 
             for (let ch of characters) {
                 const tdChk = document.createElement('td');
                 const colBg = getColColor(ch.color);
                 tdChk.style.backgroundColor = colBg;
                 
-                const disabled = isDisabled(rowIdx, ch.id);
-                const isKonmeikuClosed = (item.taskId === 'konmeiku' && isOpen === false);
+                const disabled = isDisabled(item.key, ch.id);
                 
                 if (isEditMode) {
                     tdChk.classList.add('edit-mode-cell');
                     const editButton = document.createElement('div');
                     editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
                     editButton.innerText = disabled ? '🔒' : '🔓';
-                    editButton.onclick = (function(r, c) {
+                    editButton.onclick = (function(k, cid) {
                         return function(e) {
                             e.preventDefault();
                             e.stopPropagation();
-                            toggleDisabled(r, c);
+                            toggleDisabled(k, cid);
                             return false;
                         };
-                    })(rowIdx, ch.id);
+                    })(item.key, ch.id);
                     tdChk.appendChild(editButton);
                 } else {
                     const cb = document.createElement('input');
                     cb.type = 'checkbox';
-                    if (disabled || isKonmeikuClosed) {
+                    if (disabled) {
                         cb.disabled = true;
                         cb.classList.add('disabled-checkbox');
                     } else {
-                        const isChecked = loadCheck(rowIdx, ch.id, effectiveDate, item.taskId);
+                        const isChecked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
                         cb.checked = isChecked;
-                        cb.addEventListener('change', (function(r, cid, d) {
+                        cb.addEventListener('change', (function(k, cid, d, tid) {
                             return function(e) {
-                                saveCheck(r, cid, e.target.checked, d);
+                                saveCheck(k, cid, e.target.checked, d);
                             };
-                        })(rowIdx, ch.id, effectiveDate));
+                        })(item.key, ch.id, effectiveDate, item.taskId));
                     }
                     tdChk.appendChild(cb);
                 }
                 row.appendChild(tdChk);
             }
             tbody.appendChild(row);
-            rowIdx++;
         }
 
-        appendLimitedRows();
+        // イベント行の描画（非同期だが描画完了を待たない）
+        renderEventRows(tbody, targetDate);
+        
+        // 詳細テーブル描画
+        renderDetailTable();
     }
 
     // ===== スタイル定義 =====
@@ -777,7 +880,7 @@
 <style>
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #eef2f7; margin: 0; padding: 8px; color: #1e2f3f; }
-.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 60px; overflow-x: auto; }
+.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 20px; overflow-x: auto; }
 .toolbar { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #e2edf2; }
 .toolbar input { padding: 5px 8px; font-size: 0.7rem; border: 1px solid #ccc; border-radius: 20px; width: 90px; }
 .toolbar input[type="color"] { width: 32px; height: 30px; border-radius: 20px; cursor: pointer; }
@@ -786,21 +889,14 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .edit-btn { background: #f59e0b !important; color: white !important; }
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
-.update-notice { background: #dbeafe; border-left: 3px solid #2563eb; margin: 6px 12px; padding: 6px 10px; border-radius: 10px; font-size: 0.65rem; color: #1e40af; }
-table { width: 100%; border-collapse: collapse; font-size: 0.65rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
 th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
-th { background: #e6edf4; font-weight: 600; font-size: 0.65rem; }
-tbody tr td:first-child { position: sticky; left: 0; background-color: #fafcff; z-index: 1; }
+th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
 thead tr th:first-child { position: sticky; left: 0; background-color: #e6edf4; z-index: 2; }
-.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.65rem; }
-.status-cell { background: #f9fbfd; font-size: 0.62rem; white-space: nowrap; }
-.status-chip { background: #eef2ff; padding: 1px 5px; border-radius: 16px; display: inline-block; }
-.alert-badge { background: #e53e3e; color: white; padding: 1px 4px; border-radius: 16px; font-size: 0.5rem; margin-left: 3px; }
-.konmeiku-closed { background-color: #f0f0f0 !important; }
-.konmeiku-closed td { background-color: #f0f0f0 !important; }
+tbody tr td:first-child { position: sticky; left: 0; background-color: #fafcff; z-index: 1; }
+.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
 .section-row { background: #e9edf2; }
-.section-row td { padding: 3px; font-size: 0.55rem; color: #5a6e85; }
-.section-row.section-highlight { border-left: 4px solid #dc2626; }
+.section-row td { padding: 3px 8px; font-size: 0.6rem; color: #5a6e85; }
 .char-header { min-width: 70px; }
 .char-header-content { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .char-name { display: inline-block; padding: 2px 4px; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 0.75rem; white-space: nowrap; }
@@ -813,6 +909,7 @@ input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; po
 .edit-button { width: 28px; height: 28px; margin: 0 auto; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-size: 14px; background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-enabled { background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-disabled { background-color: #f59e0b; border: 1px solid #d97706; color: white; }
+.detail-table th, .detail-table td { text-align: left; padding: 6px 8px; }
 @media (max-width: 768px) {
   body { padding: 12px 0 0 0 !important; }
   .container { padding: 6px 0 100px !important; }
@@ -821,7 +918,6 @@ input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; po
   .toolbar button { padding: 5px 8px; font-size: 0.65rem; }
   .edit-button { width: 24px; height: 24px; font-size: 12px; }
 }
-@media (max-width: 600px) { .char-name { font-size: 0.65rem; } .toolbar input { width: 70px; } .toolbar button { padding: 5px 8px; font-size: 0.65rem; } .edit-button { width: 24px; height: 24px; font-size: 12px; } }
 body.dark-mode { background: #0f172a; color: #e5e7eb; }
 body.dark-mode .container { background: #111827; }
 body.dark-mode .toolbar { border-bottom-color: #2a3441; }
@@ -831,19 +927,13 @@ body.dark-mode .add-btn { background: #3399ff !important; }
 body.dark-mode .edit-btn { background: #f59e0b !important; }
 body.dark-mode .edit-mode-active { background: #10b981 !important; }
 body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
-body.dark-mode .update-notice { background: #1e3a8a; color: #dbeafe; border-left-color: #3b82f6; }
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #e5e7eb; border-bottom-color: #374151; }
 body.dark-mode td { color: #e5e7eb; border-bottom-color: #2a3441; }
 body.dark-mode tbody tr td:first-child { background: #111827 !important; }
 body.dark-mode thead tr th:first-child { background: #1f2937 !important; }
-body.dark-mode .status-cell { background: #1a2332; }
-body.dark-mode .status-chip { background: #374151; }
-body.dark-mode .konmeiku-closed td { background-color: #1f2937 !important; }
 body.dark-mode .section-row { background: #1f2937; }
 body.dark-mode .section-row td { color: #9ca3af; }
-body.dark-mode .section-row.section-highlight { border-left-color: #ef4444; }
-body.dark-mode .section-row.section-highlight td { color: #fecaca; }
 body.dark-mode .char-name { color: #e5e7eb; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .edit-mode-cell { background-color: #2a2a2a; }
@@ -867,20 +957,21 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
 <button id="editModeBtn" class="edit-btn">✏️ 編集モード</button>
 </div>
 <div id="todayInfo" class="today-card"></div>
-<div id="updateNotice" class="update-notice" style="display: none;"></div>
 <div style="overflow-x: auto;">
 <table id="mainTable">
 <thead id="tableHeader">
-<tr id="headerRow"><th>項目</th><th>状況</th></tr>
+<tr id="headerRow"><th>項目</th></tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
 </div>
+<div id="detailTableContainer"></div>
 </div>
 `;
             
             loadCharacters();
             loadDisabled();
+            loadHidden();
             
             const addBtn = document.getElementById('addCharBtn');
             const editBtn = document.getElementById('editModeBtn');
@@ -889,7 +980,6 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             
             renderAll();
             
-            // Observerを保存
             if (currentObserver) currentObserver.disconnect();
             currentObserver = new MutationObserver(() => {
                 if (typeof renderAll === 'function') renderAll();
@@ -902,7 +992,6 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
                 currentObserver.disconnect();
                 currentObserver = null;
             }
-            // イベントリスナーの削除など必要なら追加
             const addBtn = document.getElementById('addCharBtn');
             const editBtn = document.getElementById('editModeBtn');
             if (addBtn) addBtn.replaceWith(addBtn.cloneNode(true));
