@@ -654,6 +654,18 @@ body.dark-mode #pob div { color: #5a9eff !important; }
     };
 
     global.ExpCalculator = {
-        render: ExpCalc.render.bind(ExpCalc)
-    };
+    render: ExpCalc.render.bind(ExpCalc),
+    destroy: function() {
+        if (ExpCalc.timer) {
+            clearInterval(ExpCalc.timer);
+            ExpCalc.timer = null;
+        }
+        // 必要に応じてグローバル変数もリセット
+        ExpCalc.startTime = 0;
+        ExpCalc.pauseSec = 0;
+        ExpCalc.lastLap = 0;
+        ExpCalc.jobOffset = 0;
+        ExpCalc.passbookOffset = 0;
+    }
+};
 })(window);
