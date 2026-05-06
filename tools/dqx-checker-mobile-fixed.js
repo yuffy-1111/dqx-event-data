@@ -31,7 +31,7 @@
         { name: "ロスターのお題", taskId: "roster", key: "roster" },
         { name: "黄昏の奏戦記", taskId: "tasogare", key: "tasogare" },
         { name: "レモンスライムクイズ", taskId: "lemon", key: "lemon" },
-        { type: "section", label: "▼ 邪神の宮殿", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
+        { type: "section", label: "▼ 隔週2", sectionId: "jashin-section", taskKey: "section_jashin", cycleTaskId: "jashin" },
         { name: "邪神の宮殿", taskId: "jashin", key: "jashin" },
         { type: "section", label: "▼ 月1回", sectionId: "monthly-section", taskKey: "section_monthly", cycleTaskId: "monthly" },
         { name: "異界の闘技場", taskId: "monthly", key: "monthly1" },
