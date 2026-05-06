@@ -950,6 +950,39 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
 table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+/* 追加するCSS */
+#mainTable {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+
+#mainTable thead,
+#mainTable tbody {
+    display: table;
+    width: 100%;
+}
+
+#mainTable tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+
+/* 既存のsticky設定を維持 */
+thead tr th:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #e6edf4;
+    z-index: 20;
+}
+
+tbody tr td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #fafcff;
+    z-index: 10;
+}
 th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
 th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
 
