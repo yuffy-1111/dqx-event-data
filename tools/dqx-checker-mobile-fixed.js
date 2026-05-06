@@ -895,7 +895,7 @@ body.dark-mode .section-row { background: #334155 !important; border-top-color: 
 body.dark-mode .section-row td { color: #ffffff !important; }
 body.dark-mode #leftTable  .section-row td { background: #334155 !important; }
 body.dark-mode #rightTable .section-row td { background: #334155 !important; }
-body.dark-mode .detail-section-row td { background: #2d3a4a; }
+body.dark-mode .detail-section-row td { background: #334155; }
 /* 詳細テーブルのtdを強制的にダークモード色に */
 body.dark-mode .detail-table td {
     background-color: #111827 !important;
