@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（最終版・列固定修正完了・折り返しなし） ==========
+// ========== DQX日課チェッカー（安定版・列固定のみ修正） ==========
 (function(global) {
     // ===== ストレージキー =====
     const STORAGE_CHARS = 'dqx_chars_final10';
@@ -216,6 +216,7 @@
         return next;
     }
 
+    // セクション用の次回表示テキストを取得
     function getSectionNextText(taskId, targetDate) {
         if (!taskId) return '';
         const effectiveNow = getEffectiveDate(targetDate);
@@ -482,83 +483,27 @@
         return true;
     }
 
-    // ===== 列幅定義 =====
-    const COLUMN_WIDTHS = {
-        minCharColumn: '80px',
-        minTaskName: '100px'
-    };
-
-    // ===== 列固定適用関数 =====
-    function applyStickyColumns() {
-        const table = document.querySelector('#mainTable');
-        if (!table) return;
-        
-        table.style.tableLayout = 'fixed';
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        
-        const headerCells = table.querySelectorAll('thead th.char-header');
-        headerCells.forEach(cell => {
-            cell.style.width = COLUMN_WIDTHS.minCharColumn;
-            cell.style.minWidth = COLUMN_WIDTHS.minCharColumn;
-        });
-        
-        const bodyCharCells = table.querySelectorAll('tbody td:not(.task-name)');
-        bodyCharCells.forEach(cell => {
-            cell.style.width = COLUMN_WIDTHS.minCharColumn;
-            cell.style.minWidth = COLUMN_WIDTHS.minCharColumn;
-        });
-        
-        const firstCells = table.querySelectorAll('th:first-child, td.task-name');
-        firstCells.forEach(cell => {
-            cell.style.position = 'sticky';
-            cell.style.left = '0';
-            cell.style.zIndex = '100';
-            cell.style.whiteSpace = 'nowrap';
-            cell.style.overflow = 'visible';
-            cell.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-        });
-        
-        const headerFirst = table.querySelector('thead tr th:first-child');
-        if (headerFirst) {
-            headerFirst.style.zIndex = '200';
-            headerFirst.style.backgroundColor = isDarkMode() ? '#1f2937' : '#e6edf4';
-            headerFirst.style.boxShadow = '2px 0 4px rgba(0,0,0,0.1)';
-        }
-        
-        const sectionFirstCells = table.querySelectorAll('tbody tr.section-row td:first-child');
-        sectionFirstCells.forEach(cell => {
-            cell.style.zIndex = '150';
-            cell.style.backgroundColor = isDarkMode() ? '#334155' : '#b8c7da';
-            cell.style.boxShadow = '2px 0 4px rgba(0,0,0,0.1)';
-        });
-        
-        const normalFirstCells = table.querySelectorAll('tbody tr:not(.section-row) td.task-name');
-        normalFirstCells.forEach(cell => {
-            cell.style.zIndex = '100';
-            cell.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-        });
-    }
-
     // ===== 詳細テーブル描画 =====
     async function renderDetailTable() {
         const today = getJSTNow();
         const detailContainer = document.getElementById('detailTableContainer');
         if (!detailContainer) return;
 
-        let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem; table-layout: fixed;">';
-        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left; width: 100px;">名称</th><th style="padding: 6px; text-align: left; width: 200px;">詳細</th></tr></thead><tbody>';
+        let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
+        html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
 
+        // パニガルムセクション
         html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
         
         const paniDetail = getPaniDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(paniDetail.name)}</td>`;
-        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(paniDetail.detail)}</td></tr>`;
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
 
         const konmeikuDetail = getKonmeikuDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(konmeikuDetail.name)}</td>`;
-        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td>`;
+        html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
 
+        // イベントセクション
         let events = [];
         try {
             const res = await fetch(EVENTS_URL, { cache: 'no-store' });
@@ -575,8 +520,8 @@
         if (events.length) {
             html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ イベント</td></tr>';
             for (const event of events) {
-                html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(event.name)}</td>`;
-                html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2; white-space: nowrap;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
+                html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(event.name)}</td>`;
+                html += `<td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(getEventPeriodStr(event))}</td></tr>`;
             }
         }
 
@@ -584,7 +529,21 @@
         detailContainer.innerHTML = html;
     }
 
-    // ===== イベントセクション描画 =====
+    // ===== メイン描画関数 =====
+    function toggleEditMode() {
+        isEditMode = !isEditMode;
+        const editBtn = document.getElementById('editModeBtn');
+        if (isEditMode) {
+            editBtn.textContent = '🔒 編集モード終了';
+            editBtn.classList.add('edit-mode-active');
+        } else {
+            editBtn.textContent = '✏️ 編集モード';
+            editBtn.classList.remove('edit-mode-active');
+        }
+        renderAll();
+    }
+
+    // イベントセクションと行を描画
     async function renderEventRows(tbody, targetDate) {
         let events = [];
         try {
@@ -603,6 +562,7 @@
         const dailyEvents = events.filter(e => e.resetType === 'daily');
         const otherEvents = events.filter(e => e.resetType !== 'daily');
 
+        // 毎日イベントセクション
         if (dailyEvents.length) {
             const secRow = document.createElement('tr');
             secRow.className = 'section-row';
@@ -632,15 +592,9 @@
                 
                 const tdName = document.createElement('td');
                 tdName.className = 'task-name';
-                tdName.style.display = 'table-cell';
-                tdName.style.verticalAlign = 'middle';
-                tdName.style.position = 'sticky';
-                tdName.style.left = '0';
-                tdName.style.zIndex = '100';
-                tdName.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-                tdName.style.minWidth = COLUMN_WIDTHS.minTaskName;
-                tdName.style.whiteSpace = 'nowrap';
-                tdName.style.padding = '5px 8px';
+                tdName.style.display = 'flex';
+                tdName.style.alignItems = 'center';
+                tdName.style.gap = '6px';
                 
                 if (isEditMode) {
                     const hideBtn = document.createElement('button');
@@ -653,7 +607,6 @@
                     hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
                     hideBtn.style.color = 'white';
-                    hideBtn.style.marginRight = '6px';
                     hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
                     tdName.appendChild(hideBtn);
                 }
@@ -665,9 +618,6 @@
 
                 for (const ch of characters) {
                     const td = document.createElement('td');
-                    td.style.minWidth = COLUMN_WIDTHS.minCharColumn;
-                    td.style.width = COLUMN_WIDTHS.minCharColumn;
-                    
                     const colBg = getColColor(ch.color);
                     td.style.backgroundColor = colBg;
                     
@@ -708,6 +658,7 @@
             }
         }
 
+        // 期間中1回イベントセクション
         if (otherEvents.length) {
             const secRow = document.createElement('tr');
             secRow.className = 'section-row';
@@ -737,15 +688,9 @@
                 
                 const tdName = document.createElement('td');
                 tdName.className = 'task-name';
-                tdName.style.display = 'table-cell';
-                tdName.style.verticalAlign = 'middle';
-                tdName.style.position = 'sticky';
-                tdName.style.left = '0';
-                tdName.style.zIndex = '100';
-                tdName.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-                tdName.style.minWidth = COLUMN_WIDTHS.minTaskName;
-                tdName.style.whiteSpace = 'nowrap';
-                tdName.style.padding = '5px 8px';
+                tdName.style.display = 'flex';
+                tdName.style.alignItems = 'center';
+                tdName.style.gap = '6px';
                 
                 if (isEditMode) {
                     const hideBtn = document.createElement('button');
@@ -758,7 +703,6 @@
                     hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                     hideBtn.style.border = '1px solid #cbd5e1';
                     hideBtn.style.color = 'white';
-                    hideBtn.style.marginRight = '6px';
                     hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
                     tdName.appendChild(hideBtn);
                 }
@@ -770,9 +714,6 @@
 
                 for (const ch of characters) {
                     const td = document.createElement('td');
-                    td.style.minWidth = COLUMN_WIDTHS.minCharColumn;
-                    td.style.width = COLUMN_WIDTHS.minCharColumn;
-                    
                     const colBg = getColColor(ch.color);
                     td.style.backgroundColor = colBg;
                     
@@ -812,20 +753,6 @@
                 tbody.appendChild(row);
             }
         }
-    }
-
-    // ===== メイン描画関数 =====
-    function toggleEditMode() {
-        isEditMode = !isEditMode;
-        const editBtn = document.getElementById('editModeBtn');
-        if (isEditMode) {
-            editBtn.textContent = '🔒 編集モード終了';
-            editBtn.classList.add('edit-mode-active');
-        } else {
-            editBtn.textContent = '✏️ 編集モード';
-            editBtn.classList.remove('edit-mode-active');
-        }
-        renderAll();
     }
 
     function renderAll() {
@@ -937,15 +864,9 @@
             
             const tdName = document.createElement('td');
             tdName.className = 'task-name';
-            tdName.style.display = 'table-cell';
-            tdName.style.verticalAlign = 'middle';
-            tdName.style.position = 'sticky';
-            tdName.style.left = '0';
-            tdName.style.zIndex = '100';
-            tdName.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-            tdName.style.minWidth = COLUMN_WIDTHS.minTaskName;
-            tdName.style.whiteSpace = 'nowrap';
-            tdName.style.padding = '5px 8px';
+            tdName.style.display = 'flex';
+            tdName.style.alignItems = 'center';
+            tdName.style.gap = '6px';
             
             if (isEditMode) {
                 const hideBtn = document.createElement('button');
@@ -958,7 +879,6 @@
                 hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                 hideBtn.style.border = '1px solid #cbd5e1';
                 hideBtn.style.color = 'white';
-                hideBtn.style.marginRight = '6px';
                 hideBtn.onclick = (() => { toggleHidden(item.key); });
                 tdName.appendChild(hideBtn);
             }
@@ -970,9 +890,6 @@
 
             for (let ch of characters) {
                 const tdChk = document.createElement('td');
-                tdChk.style.minWidth = COLUMN_WIDTHS.minCharColumn;
-                tdChk.style.width = COLUMN_WIDTHS.minCharColumn;
-                
                 const colBg = getColColor(ch.color);
                 tdChk.style.backgroundColor = colBg;
                 
@@ -1014,15 +931,11 @@
             tbody.appendChild(row);
         }
 
-        await renderEventRows(tbody, targetDate);
+        renderEventRows(tbody, targetDate);
         renderDetailTable();
-        
-        setTimeout(() => {
-            applyStickyColumns();
-        }, 10);
     }
 
-    // ===== スタイル定義 =====
+    // ===== スタイル定義（列固定を修正） =====
     const toolStyle = `
 <style>
 * { box-sizing: border-box; }
@@ -1036,16 +949,50 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .edit-btn { background: #f59e0b !important; color: white !important; }
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
-table { width: 100%; border-collapse: collapse; font-size: 0.7rem; table-layout: fixed; }
-th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
+table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
+th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
 th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
-.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; min-width: 100px; overflow: visible; }
 
-.section-row { position: relative; z-index: 3; background: #b8c7da !important; border-top: 2px solid #94a8c2; border-bottom: 2px solid #94a8c2; }
-.section-row td { background: inherit !important; color: #1e3a5f !important; font-weight: bold; letter-spacing: 0.5px; }
+/* ===== 列固定の修正 ===== */
+thead tr th:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #e6edf4;
+    z-index: 20;
+}
+
+tbody tr td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #fafcff;
+    z-index: 10;
+}
+
+.section-row td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 15;
+    background: #b8c7da !important;
+}
+
+/* セクション行の基本スタイル */
+.section-row td {
+    color: #1e3a5f !important;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.section-row {
+    background: #b8c7da !important;
+    border-top: 2px solid #94a8c2;
+    border-bottom: 2px solid #94a8c2;
+}
+
 .detail-section-row td { background: #e9edf2; font-weight: bold; }
 
-.char-header { min-width: 80px; width: 80px; }
+.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
+
+.char-header { min-width: 70px; }
 .char-header-content { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .char-name { display: inline-block; padding: 2px 4px; border-radius: 16px; cursor: pointer; font-weight: 600; font-size: 0.75rem; white-space: nowrap; }
 .char-controls { display: flex; gap: 4px; justify-content: center; align-items: center; }
@@ -1057,10 +1004,7 @@ input[type="checkbox"].disabled-checkbox { opacity: 0.4; cursor: not-allowed; po
 .edit-button { width: 28px; height: 28px; margin: 0 auto; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.1s; font-size: 14px; background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-enabled { background-color: #e2e8f0; border: 1px solid #cbd5e1; }
 .edit-button-disabled { background-color: #f59e0b; border: 1px solid #d97706; color: white; }
-.detail-table { width: 100%; table-layout: fixed; }
-.detail-table th, .detail-table td { text-align: left; padding: 6px 8px; white-space: nowrap; }
-.detail-table th:first-child { width: 100px; }
-.detail-table th:last-child { width: 200px; }
+.detail-table th, .detail-table td { text-align: left; padding: 6px 8px; }
 @media (max-width: 768px) {
   body { padding: 12px 0 0 0 !important; }
   .container { padding: 6px 0 100px !important; }
@@ -1081,6 +1025,9 @@ body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
+body.dark-mode tbody tr td:first-child { background-color: #111827; }
+body.dark-mode thead tr th:first-child { background-color: #1f2937; }
+body.dark-mode .section-row td:first-child { background-color: #334155 !important; }
 body.dark-mode .section-row { background: #334155 !important; border-top: 2px solid #475569; border-bottom: 2px solid #475569; }
 body.dark-mode .section-row td { color: #ffffff !important; }
 body.dark-mode .detail-section-row td { background: #2d3a4a; }
@@ -1110,7 +1057,7 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
 <div style="overflow-x: auto;">
 <table id="mainTable">
 <thead id="tableHeader">
-<tr id="headerRow"><th>項目</th></tr>
+<tr id="headerRow"><th>項目</th></td>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
