@@ -35,10 +35,10 @@
         { name: "邪神の宮殿", taskId: "jashin", key: "jashin" },
         { type: "section", label: "▼ 月1回", sectionId: "monthly-section", taskKey: "section_monthly", cycleTaskId: "monthly" },
         { name: "異界の闘技場", taskId: "monthly", key: "monthly1" },
-        { type: "section", label: "▼ 周期", sectionId: "period-section", taskKey: "section_period", cycleTaskId: "pani" },
-        { name: "現世庫パニガルム", taskId: "pani", key: "pani" },
-        { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
-        { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
+        { type: "section", label: "▼ 周期", sectionId: "period-section", taskKey: "section_period", cycleTaskId: "genseko" },
+        { name: "現世庫パニガルム", taskId: "genseko", key: "genseko" },
+        { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiko" },
+        { name: "昏冥庫パニガルム", taskId: "konmeiko", key: "konmeiko" },
         { type: "section", label: "▼ 受け取り", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
         { type: "section", label: "▼ 受け取り", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
@@ -127,7 +127,7 @@
                 const cycles = Math.floor(hours / 168);
                 return new Date(base.getTime() + cycles * 168 * 60 * 60 * 1000);
             }
-            case 'pani': {
+            case 'genseko': {
                 const base = new Date(2026, 3, 12, 6, 0, 0);
                 const hours = (target - base) / (1000 * 60 * 60);
                 const cycles = Math.floor(hours / 72);
@@ -165,7 +165,7 @@
         const next = new Date(last);
         switch(taskId) {
             case 'weekly': next.setTime(last.getTime() + 168 * 60 * 60 * 1000); break;
-            case 'pani':   next.setTime(last.getTime() + 72 * 60 * 60 * 1000); break;
+            case 'genseko':   next.setTime(last.getTime() + 72 * 60 * 60 * 1000); break;
             case 'roster': case 'tasogare': case 'lemon':
                 if (last.getDate() === 1) next.setDate(15);
                 else { next.setDate(1); next.setMonth(next.getMonth() + 1); }
@@ -183,49 +183,61 @@
         if (!taskId) return '';
         const effectiveNow = getEffectiveDate(targetDate);
         let nextDate;
-        if (taskId === 'pani') {
-            const last = getLastUpdateDateForTask('pani', effectiveNow);
+        if (taskId === 'genseko') {
+            const last = getLastUpdateDateForTask('genseko', effectiveNow);
             nextDate = new Date(last.getTime() + 72 * 60 * 60 * 1000);
             const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
             const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
-            return diffDays <= 0 ? `【次回 ${nextStr}】` : `【次回 ${nextStr}（あと${diffDays}日）】`;
+            return diffDays <= 0 ? `【次回 ${nextStr} 更新】` : `【次回 ${nextStr} 更新（あと${diffDays}日）】`;
         }
-        if (taskId === 'konmeiku') {
+        if (taskId === 'konmeiko') {
             const now = getEffectiveDate(targetDate);
             const day = now.getDate();
-            let nextStart = day < 15
-                ? new Date(now.getFullYear(), now.getMonth(), 15, 6, 0, 0)
-                : new Date(now.getFullYear(), now.getMonth() + 1, 1, 6, 0, 0);
-            const diffDays = Math.ceil((nextStart - now) / (1000 * 60 * 60 * 24));
-            const nextStr = `${nextStart.getMonth()+1}/${nextStart.getDate()}`;
-            return diffDays <= 0 ? `【次回 ${nextStr}】` : `【次回 ${nextStr}（あと${diffDays}日）】`;
+            const isOpen = (day >= 1 && day <= 5) || (day >= 15 && day <= 20);
+            
+            if (isOpen) {
+                // 開催中：残り日数を計算
+                let endDate = day <= 5
+                    ? new Date(now.getFullYear(), now.getMonth(), 5, 23, 59, 59)
+                    : new Date(now.getFullYear(), now.getMonth(), 20, 23, 59, 59);
+                const remainDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                return `【開催中 残り${remainDays}日】`;
+            } else {
+                // 未開催：次回までの日数
+                let nextStart = day < 15
+                    ? new Date(now.getFullYear(), now.getMonth(), 15, 6, 0, 0)
+                    : new Date(now.getFullYear(), now.getMonth() + 1, 1, 6, 0, 0);
+                const diffDays = Math.ceil((nextStart - now) / (1000 * 60 * 60 * 24));
+                const nextStr = `${nextStart.getMonth()+1}/${nextStart.getDate()}`;
+                return `【次回 ${nextStr} 開催（あと${diffDays}日）】`;
+            }
         }
         nextDate = getNextUpdateDateForTask(taskId, effectiveNow);
         const diffDays = Math.ceil((nextDate - effectiveNow) / (1000 * 60 * 60 * 24));
         const nextStr = `${nextDate.getMonth()+1}/${nextDate.getDate()}`;
-        return diffDays <= 0 ? `【次回 ${nextStr}】` : `【次回 ${nextStr}（あと${diffDays}日）】`;
+        return diffDays <= 0 ? `【次回 ${nextStr} 更新】` : `【次回 ${nextStr} 更新（あと${diffDays}日）】`;
     }
 
     // ===== パニガルム =====
-    const PANI_BOSSES = ['ﾌｫﾙﾀﾞｲﾅ','ﾀﾞｲﾀﾞﾙﾓｽ','ﾊﾟﾆｶﾞｷｬｯﾁｬｰ','ﾌﾙﾎﾟﾃｨ','ﾌﾟﾙﾀﾇｽ','ｴﾙｷﾞｵｽ','ｱﾙﾏﾅ','ｼﾞｹﾞﾝﾘｭｳ'];
-    const PANI_BASE = new Date(2026, 3, 12, 6, 0, 0);
-    function getPaniDetail(targetDate) {
+    const GENSEKO_BOSSES = ['ﾌｫﾙﾀﾞｲﾅ','ﾀﾞｲﾀﾞﾙﾓｽ','ﾊﾟﾆｶﾞｷｬｯﾁｬｰ','ﾌﾙﾎﾟﾃｨ','ﾌﾟﾙﾀﾇｽ','ｴﾙｷﾞｵｽ','ｱﾙﾏﾅ','ｼﾞｹﾞﾝﾘｭｳ'];
+    const GENSEKO_BASE = new Date(2026, 3, 12, 6, 0, 0);
+    function getGensekoDetail(targetDate) {
         const target = getEffectiveDate(targetDate);
-        const hours = (target - PANI_BASE) / (1000 * 60 * 60);
+        const hours = (target - GENSEKO_BASE) / (1000 * 60 * 60);
         let cycle = Math.floor(hours / 72);
         if (hours < 0) cycle = -1;
         const bossIdx = ((cycle % 8) + 8) % 8;
-        const startDate = new Date(PANI_BASE.getTime() + cycle * 72 * 60 * 60 * 1000);
+        const startDate = new Date(GENSEKO_BASE.getTime() + cycle * 72 * 60 * 60 * 1000);
         const endDate = new Date(startDate.getTime() + 72 * 60 * 60 * 1000);
         function fmt(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
-        return { name: `現世庫パニガルム`, detail: `${PANI_BOSSES[bossIdx]} ${fmt(startDate)}〜${fmt(endDate)}` };
+        return { name: `現世庫パニガルム`, detail: `${GENSEKO_BOSSES[bossIdx]} ${fmt(startDate)}〜${fmt(endDate)}` };
     }
-    const KONMEIKU_BOSSES = ['ﾊﾟﾆｽﾗｲﾑ', 'ｼﾞｪﾛﾄﾞｰﾗ', 'ﾌｫﾙｶﾞﾉｽ', 'ﾏｳﾌﾗｰﾄ'];
-    const KONMEIKU_BASE = new Date(2026, 3, 1, 6, 0, 0);
-    function getKonmeikuCycleIndex(targetDate) {
+    const KONMEIKO_BOSSES = ['ﾊﾟﾆｽﾗｲﾑ', 'ｼﾞｪﾛﾄﾞｰﾗ', 'ﾌｫﾙｶﾞﾉｽ', 'ﾏｳﾌﾗｰﾄ'];
+    const KONMEIKO_BASE = new Date(2026, 3, 1, 6, 0, 0);
+    function getKonmeikoCycleIndex(targetDate) {
         const d = getEffectiveDate(targetDate);
         let count = 0;
-        let current = new Date(KONMEIKU_BASE);
+        let current = new Date(KONMEIKO_BASE);
         while (current <= d) {
             const day = current.getDate();
             if (day === 1 || day === 15) count++;
@@ -234,7 +246,7 @@
         }
         return ((count - 1) % 4 + 4) % 4;
     }
-    function getKonmeikuDetail(targetDate) {
+    function getKonmeikoDetail(targetDate) {
         const target = getEffectiveDate(targetDate);
         const day = target.getDate();
         const year = target.getFullYear();
@@ -242,11 +254,11 @@
         const isOpen = (day >= 1 && day <= 5) || (day >= 15 && day <= 20);
         function fmt(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
         if (isOpen) {
-            const bossIdx = getKonmeikuCycleIndex(target);
+            const bossIdx = getKonmeikoCycleIndex(target);
             const period = day <= 5
                 ? `${fmt(new Date(year, month, 1))}〜${fmt(new Date(year, month, 5))}`
                 : `${fmt(new Date(year, month, 15))}〜${fmt(new Date(year, month, 20))}`;
-            return { name: `昏冥庫パニガルム`, detail: `${KONMEIKU_BOSSES[bossIdx]} ${period}` };
+            return { name: `昏冥庫パニガルム`, detail: `${KONMEIKO_BOSSES[bossIdx]} ${period}` };
         } else {
             let nextStart, nextEnd;
             if (day < 15) { nextStart = new Date(year, month, 15); nextEnd = new Date(year, month, 20); }
@@ -333,7 +345,7 @@
 
     // ===== チェックボックス =====
     function shouldReset(lastCheckedDate, todayDate, taskId) {
-        if (taskId === 'konmeiku') {
+        if (taskId === 'konmeiko') {
             const target = getEffectiveDate(todayDate);
             const day = target.getDate();
             const isOpen = (day >= 1 && day <= 5) || (day >= 15 && day <= 20);
@@ -428,10 +440,10 @@
         let html = '<div style="margin-top: 20px; overflow-x: auto;"><table class="detail-table" style="width: 100%; border-collapse: collapse; font-size: 0.7rem;">';
         html += '<thead><tr style="background: #e6edf4;"><th style="padding: 6px; text-align: left;">名称</th><th style="padding: 6px; text-align: left;">詳細</th></tr></thead><tbody>';
         html += '<tr class="detail-section-row"><td colspan="2" style="padding: 6px 8px; background: #e9edf2; font-weight: bold; text-align: left;">▼ パニガルム</td></tr>';
-        const paniDetail = getPaniDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.name)}</td><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(paniDetail.detail)}</td></tr>`;
-        const konmeikuDetail = getKonmeikuDetail(today);
-        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.name)}</td><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikuDetail.detail)}</td></tr>`;
+        const gensekoDetail = getGensekoDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(gensekoDetail.name)}</td><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(gensekoDetail.detail)}</td></tr>`;
+        const konmeikoDetail = getKonmeikoDetail(today);
+        html += `<tr><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikoDetail.name)}</td><td style="padding: 5px 8px; border-bottom: 1px solid #e2edf2;">${escapeHtml(konmeikoDetail.detail)}</td></tr>`;
         let events = [];
         try {
             const res = await fetch(EVENTS_URL, { cache: 'no-store' });
@@ -648,58 +660,58 @@
         for (const item of sectionsTemplate) {
             if (item.type === 'section') {
                 // セクション行の描画
-const isHiddenRow = isHidden(item.taskKey);
-if (!isEditMode && isHiddenRow) continue;
+                const isHiddenRow = isHidden(item.taskKey);
+                if (!isEditMode && isHiddenRow) continue;
 
-// 左：セクション行（ラベルのみ）
-const lRow = document.createElement('tr');
-lRow.className = 'section-row';
-if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
-const lTd = document.createElement('td');
-lTd.style.padding = '4px 8px';
+                // 左：セクション行（ラベルのみ）
+                const lRow = document.createElement('tr');
+                lRow.className = 'section-row';
+                if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
+                const lTd = document.createElement('td');
+                lTd.style.padding = '4px 8px';
 
-const container = document.createElement('div');
-container.style.display = 'flex';
-container.style.alignItems = 'baseline';
-container.style.gap = '6px';
+                const container = document.createElement('div');
+                container.style.display = 'flex';
+                container.style.alignItems = 'baseline';
+                container.style.gap = '6px';
 
-if (isEditMode && item.taskKey) {
-    const hideBtn = document.createElement('button');
-    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
-    Object.assign(hideBtn.style, {
-        width: '26px', height: '26px', borderRadius: '6px', cursor: 'pointer',
-        fontSize: '13px', backgroundColor: isHiddenRow ? '#10b981' : '#ef4444',
-        border: '1px solid #cbd5e1', color: 'white'
-    });
-    hideBtn.onclick = () => toggleHidden(item.taskKey);
-    container.appendChild(hideBtn);
-}
-const labelSpan = document.createElement('span');
-labelSpan.innerText = item.label;
-container.appendChild(labelSpan);
-lTd.appendChild(container);
-lRow.appendChild(lTd);
-leftTbody.appendChild(lRow);
+                if (isEditMode && item.taskKey) {
+                    const hideBtn = document.createElement('button');
+                    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
+                    Object.assign(hideBtn.style, {
+                        width: '26px', height: '26px', borderRadius: '6px', cursor: 'pointer',
+                        fontSize: '13px', backgroundColor: isHiddenRow ? '#10b981' : '#ef4444',
+                        border: '1px solid #cbd5e1', color: 'white'
+                    });
+                    hideBtn.onclick = () => toggleHidden(item.taskKey);
+                    container.appendChild(hideBtn);
+                }
+                const labelSpan = document.createElement('span');
+                labelSpan.innerText = item.label;
+                container.appendChild(labelSpan);
+                lTd.appendChild(container);
+                lRow.appendChild(lTd);
+                leftTbody.appendChild(lRow);
 
-// 右：セクション行（次回情報を中央に表示）
-const rRow = document.createElement('tr');
-rRow.className = 'section-row';
-if (isHiddenRow && isEditMode) rRow.style.opacity = '0.5';
-const rTd = document.createElement('td');
-rTd.colSpan = Math.max(characters.length, 1);
-rTd.style.textAlign = 'center';
-rTd.style.padding = '4px 8px';
+                // 右：セクション行（次回情報を中央に表示）
+                const rRow = document.createElement('tr');
+                rRow.className = 'section-row';
+                if (isHiddenRow && isEditMode) rRow.style.opacity = '0.5';
+                const rTd = document.createElement('td');
+                rTd.colSpan = Math.max(characters.length, 1);
+                rTd.style.textAlign = 'center';
+                rTd.style.padding = '4px 8px';
 
-const nextText = getSectionNextText(item.cycleTaskId, targetDate);
-if (nextText) {
-    const nextSpan = document.createElement('span');
-    nextSpan.innerText = nextText;
-    nextSpan.style.fontSize = '0.65rem';
-    nextSpan.style.opacity = '0.85';
-    rTd.appendChild(nextSpan);
-}
-rRow.appendChild(rTd);
-rightTbody.appendChild(rRow);
+                const nextText = getSectionNextText(item.cycleTaskId, targetDate);
+                if (nextText) {
+                    const nextSpan = document.createElement('span');
+                    nextSpan.innerText = nextText;
+                    nextSpan.style.fontSize = '0.65rem';
+                    nextSpan.style.opacity = '0.85';
+                    rTd.appendChild(nextSpan);
+                }
+                rRow.appendChild(rTd);
+                rightTbody.appendChild(rRow);
                 continue;
             }
 
@@ -749,24 +761,24 @@ rightTbody.appendChild(rRow);
                     cb.type = 'checkbox';
                     if (disabled) { cb.disabled = true; cb.classList.add('disabled-checkbox'); }
                     else {
-                        // konmeiku未開催チェック
-let isKonmeikuClosed = false;
-if (item.taskId === 'konmeiku') {
-    const today = getJSTNow();
-    const day = getEffectiveDate(today).getDate();
-    isKonmeikuClosed = !((day >= 1 && day <= 5) || (day >= 15 && day <= 20));
-}
+                        // konmeiko未開催チェック
+                        let isKonmeikoClosed = false;
+                        if (item.taskId === 'konmeiko') {
+                            const today = getJSTNow();
+                            const day = getEffectiveDate(today).getDate();
+                            isKonmeikoClosed = !((day >= 1 && day <= 5) || (day >= 15 && day <= 20));
+                        }
 
-if (isKonmeikuClosed) {
-    cb.disabled = true;
-    cb.checked = false;
-    cb.classList.add('disabled-checkbox');
-} else {
-    cb.checked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
-    cb.addEventListener('change', (function(k, cid, d) {
-        return function(e) { saveCheck(k, cid, e.target.checked, d); };
-    })(item.key, ch.id, effectiveDate));
-}
+                        if (isKonmeikoClosed) {
+                            cb.disabled = true;
+                            cb.checked = false;
+                            cb.classList.add('disabled-checkbox');
+                        } else {
+                            cb.checked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
+                            cb.addEventListener('change', (function(k, cid, d) {
+                                return function(e) { saveCheck(k, cid, e.target.checked, d); };
+                            })(item.key, ch.id, effectiveDate));
+                        }
                     }
                     td.appendChild(cb);
                 }
@@ -974,7 +986,7 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
           <tr id="rightHeaderRow"></tr>
         </thead>
         <tbody id="rightBody"></tbody>
-      </table>
+      划台
     </div>
 
   </div><!-- /#tableWrapper -->
