@@ -39,9 +39,9 @@
         { name: "現世庫パニガルム", taskId: "pani", key: "pani" },
         { type: "section", label: "▼ 期間限定", sectionId: "limited-section", taskKey: "section_limited", cycleTaskId: "konmeiku" },
         { name: "昏冥庫パニガルム", taskId: "konmeiku", key: "konmeiku" },
-        { type: "section", label: "▼ 受け取り（10日）", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-10-section", taskKey: "section_receive_10", cycleTaskId: "sekkai" },
         { name: "覚醒の秘石", taskId: "sekkai", key: "sekkai" },
-        { type: "section", label: "▼ 受け取り（1日）", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
+        { type: "section", label: "▼ 受け取り", sectionId: "receive-1-section", taskKey: "section_receive_1", cycleTaskId: "monthly" },
         { name: "宝珠ポイント(福引券)", taskId: "monthly", key: "monthly2" }
     ];
 
