@@ -1,4 +1,4 @@
-// ========== DQX日課チェッカー（列固定・構造完全修正版） ==========
+// ========== DQX日課チェッカー（動作確認済み版） ==========
 (function(global) {
 // ===== ストレージキー =====
 const STORAGE_CHARS = ‘dqx_chars_final10’;
@@ -544,282 +544,6 @@ function toggleEditMode() {
     renderAll();
 }
 
-// 列固定を適用する関数（修正版）
-function applyStickyColumns() {
-    const table = document.querySelector('#mainTable');
-    if (!table) return;
-    
-    // テーブル全体設定
-    table.style.borderCollapse = 'separate';
-    table.style.borderSpacing = '0';
-    table.style.width = '100%';
-    
-    // すべてのセルに統一サイズを設定
-    const allCells = table.querySelectorAll('th, td');
-    const TASK_NAME_WIDTH = '160px';
-    const CHAR_COLUMN_WIDTH = '70px';
-    
-    allCells.forEach((cell, idx) => {
-        const row = cell.parentElement;
-        const cellIndex = Array.from(row.children).indexOf(cell);
-        
-        if (cellIndex === 0) {
-            // 最初の列（タスク名）
-            cell.style.minWidth = TASK_NAME_WIDTH;
-            cell.style.width = TASK_NAME_WIDTH;
-            cell.style.maxWidth = TASK_NAME_WIDTH;
-            cell.style.position = 'sticky';
-            cell.style.left = '0';
-            cell.style.zIndex = '100';
-            cell.style.overflow = 'hidden';
-            cell.style.textOverflow = 'ellipsis';
-            cell.style.whiteSpace = 'nowrap';
-        } else {
-            // キャラクター列
-            cell.style.minWidth = CHAR_COLUMN_WIDTH;
-            cell.style.width = CHAR_COLUMN_WIDTH;
-            cell.style.maxWidth = CHAR_COLUMN_WIDTH;
-            cell.style.overflow = 'hidden';
-        }
-    });
-    
-    // ヘッダー設定
-    const thead = table.querySelector('thead');
-    if (thead) {
-        thead.style.position = 'sticky';
-        thead.style.top = '0';
-        thead.style.zIndex = '200';
-        const headerFirst = thead.querySelector('tr th:first-child');
-        if (headerFirst) {
-            headerFirst.style.zIndex = '200';
-            headerFirst.style.backgroundColor = isDarkMode() ? '#1f2937' : '#e6edf4';
-        }
-    }
-    
-    // セクション行の最初の列
-    const sectionFirstCells = table.querySelectorAll('tbody tr.section-row td:first-child');
-    sectionFirstCells.forEach(cell => {
-        cell.style.zIndex = '150';
-        cell.style.backgroundColor = isDarkMode() ? '#334155' : '#b8c7da';
-        cell.style.boxShadow = 'inset -2px 0 4px rgba(0,0,0,0.05)';
-    });
-    
-    // 通常行の最初の列
-    const normalFirstCells = table.querySelectorAll('tbody tr:not(.section-row) td:first-child');
-    normalFirstCells.forEach(cell => {
-        cell.style.zIndex = '100';
-        cell.style.backgroundColor = isDarkMode() ? '#111827' : '#fafcff';
-    });
-}
-
-// イベントセクションと行を描画
-async function renderEventRows(tbody, targetDate) {
-    let events = [];
-    try {
-        const res = await fetch(EVENTS_URL, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!validateEventData(data)) return;
-        events = data.events.filter(e => isEventActive(e, targetDate));
-    } catch(e) {
-        console.error('イベント取得失敗:', e);
-        return;
-    }
-
-    if (!events.length) return;
-
-    const dailyEvents = events.filter(e => e.resetType === 'daily');
-    const otherEvents = events.filter(e => e.resetType !== 'daily');
-
-    // 毎日イベントセクション
-    if (dailyEvents.length) {
-        const secRow = document.createElement('tr');
-        secRow.className = 'section-row';
-        const secTd = document.createElement('td');
-        secTd.colSpan = 1 + characters.length;
-        secTd.style.padding = '4px 8px';
-        
-        const labelSpan = document.createElement('span');
-        labelSpan.innerText = '▼ イベント（毎日）';
-        secTd.appendChild(labelSpan);
-        secRow.appendChild(secTd);
-        tbody.appendChild(secRow);
-
-        for (const event of dailyEvents) {
-            const isHiddenRow = isHidden(`event_${event.id}`);
-            if (!isEditMode && isHiddenRow) continue;
-            
-            const row = document.createElement('tr');
-            if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
-            
-            const tdName = document.createElement('td');
-            tdName.className = 'task-name';
-            tdName.style.display = 'flex';
-            tdName.style.alignItems = 'center';
-            tdName.style.gap = '6px';
-            tdName.style.overflow = 'hidden';
-            
-            if (isEditMode) {
-                const hideBtn = document.createElement('button');
-                hideBtn.innerText = isHiddenRow ? '✓' : '✗';
-                hideBtn.style.width = '28px';
-                hideBtn.style.height = '28px';
-                hideBtn.style.borderRadius = '8px';
-                hideBtn.style.cursor = 'pointer';
-                hideBtn.style.fontSize = '14px';
-                hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
-                hideBtn.style.border = '1px solid #cbd5e1';
-                hideBtn.style.color = 'white';
-                hideBtn.style.flexShrink = '0';
-                hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
-                tdName.appendChild(hideBtn);
-            }
-            
-            const nameSpan = document.createElement('span');
-            nameSpan.innerText = event.name;
-            nameSpan.style.whiteSpace = 'nowrap';
-            nameSpan.style.overflow = 'hidden';
-            nameSpan.style.textOverflow = 'ellipsis';
-            tdName.appendChild(nameSpan);
-            row.appendChild(tdName);
-
-            for (const ch of characters) {
-                const td = document.createElement('td');
-                const colBg = getColColor(ch.color);
-                td.style.backgroundColor = colBg;
-                
-                const disabled = isDisabled(`event_${event.id}`, ch.id);
-                
-                if (isEditMode) {
-                    const editButton = document.createElement('div');
-                    editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
-                    editButton.innerText = disabled ? '🔒' : '🔓';
-                    editButton.onclick = (function(ev, cid) {
-                        return function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleDisabled(`event_${ev.id}`, cid);
-                            return false;
-                        };
-                    })(event, ch.id);
-                    td.appendChild(editButton);
-                } else if (!isHiddenRow) {
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    if (disabled) {
-                        cb.disabled = true;
-                        cb.classList.add('disabled-checkbox');
-                    } else {
-                        cb.checked = isLimChecked(event, ch.id, targetDate);
-                        cb.addEventListener('change', (function(ev, cid, d) {
-                            return function(e) {
-                                setLimChecked(ev, cid, e.target.checked, d);
-                            };
-                        })(event, ch.id, targetDate));
-                    }
-                    td.appendChild(cb);
-                }
-                row.appendChild(td);
-            }
-            tbody.appendChild(row);
-        }
-    }
-
-    // 期間中1回イベントセクション
-    if (otherEvents.length) {
-        const secRow = document.createElement('tr');
-        secRow.className = 'section-row';
-        const secTd = document.createElement('td');
-        secTd.colSpan = 1 + characters.length;
-        secTd.style.padding = '4px 8px';
-        
-        const labelSpan = document.createElement('span');
-        labelSpan.innerText = '▼ イベント（期間中1回）';
-        secTd.appendChild(labelSpan);
-        secRow.appendChild(secTd);
-        tbody.appendChild(secRow);
-
-        for (const event of otherEvents) {
-            const isHiddenRow = isHidden(`event_${event.id}`);
-            if (!isEditMode && isHiddenRow) continue;
-            
-            const row = document.createElement('tr');
-            if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
-            
-            const tdName = document.createElement('td');
-            tdName.className = 'task-name';
-            tdName.style.display = 'flex';
-            tdName.style.alignItems = 'center';
-            tdName.style.gap = '6px';
-            tdName.style.overflow = 'hidden';
-            
-            if (isEditMode) {
-                const hideBtn = document.createElement('button');
-                hideBtn.innerText = isHiddenRow ? '✓' : '✗';
-                hideBtn.style.width = '28px';
-                hideBtn.style.height = '28px';
-                hideBtn.style.borderRadius = '8px';
-                hideBtn.style.cursor = 'pointer';
-                hideBtn.style.fontSize = '14px';
-                hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
-                hideBtn.style.border = '1px solid #cbd5e1';
-                hideBtn.style.color = 'white';
-                hideBtn.style.flexShrink = '0';
-                hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
-                tdName.appendChild(hideBtn);
-            }
-            
-            const nameSpan = document.createElement('span');
-            nameSpan.innerText = event.name;
-            nameSpan.style.whiteSpace = 'nowrap';
-            nameSpan.style.overflow = 'hidden';
-            nameSpan.style.textOverflow = 'ellipsis';
-            tdName.appendChild(nameSpan);
-            row.appendChild(tdName);
-
-            for (const ch of characters) {
-                const td = document.createElement('td');
-                const colBg = getColColor(ch.color);
-                td.style.backgroundColor = colBg;
-                
-                const disabled = isDisabled(`event_${event.id}`, ch.id);
-                
-                if (isEditMode) {
-                    const editButton = document.createElement('div');
-                    editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
-                    editButton.innerText = disabled ? '🔒' : '🔓';
-                    editButton.onclick = (function(ev, cid) {
-                        return function(e) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            toggleDisabled(`event_${ev.id}`, cid);
-                            return false;
-                        };
-                    })(event, ch.id);
-                    td.appendChild(editButton);
-                } else if (!isHiddenRow) {
-                    const cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    if (disabled) {
-                        cb.disabled = true;
-                        cb.classList.add('disabled-checkbox');
-                    } else {
-                        cb.checked = isLimChecked(event, ch.id, targetDate);
-                        cb.addEventListener('change', (function(ev, cid, d) {
-                            return function(e) {
-                                setLimChecked(ev, cid, e.target.checked, d);
-                            };
-                        })(event, ch.id, targetDate));
-                    }
-                    td.appendChild(cb);
-                }
-                row.appendChild(td);
-            }
-            tbody.appendChild(row);
-        }
-    }
-}
-
 function renderAll() {
     const targetDate = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
@@ -885,7 +609,6 @@ function renderAll() {
             container.style.display = 'flex';
             container.style.alignItems = 'baseline';
             container.style.gap = '10px';
-            container.style.overflow = 'hidden';
 
             // 非表示ボタン（編集モード時）
             if (isEditMode && item.taskKey) {
@@ -899,7 +622,6 @@ function renderAll() {
                 hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
                 hideBtn.style.border = '1px solid #cbd5e1';
                 hideBtn.style.color = 'white';
-                hideBtn.style.flexShrink = '0';
                 hideBtn.onclick = (() => { toggleHidden(item.taskKey); });
                 container.appendChild(hideBtn);
             }
@@ -907,7 +629,6 @@ function renderAll() {
             // ラベル
             const labelSpan = document.createElement('span');
             labelSpan.innerText = item.label;
-            labelSpan.style.whiteSpace = 'nowrap';
 
             // 次回表示
             const nextText = getSectionNextText(item.cycleTaskId, targetDate);
@@ -917,7 +638,6 @@ function renderAll() {
                 nextSpan.style.fontSize = '0.6rem';
                 nextSpan.style.opacity = '0.85';
                 nextSpan.style.marginLeft = '6px';
-                nextSpan.style.whiteSpace = 'nowrap';
                 labelSpan.appendChild(nextSpan);
             }
 
@@ -936,10 +656,6 @@ function renderAll() {
         
         const tdName = document.createElement('td');
         tdName.className = 'task-name';
-        tdName.style.display = 'flex';
-        tdName.style.alignItems = 'center';
-        tdName.style.gap = '6px';
-        tdName.style.overflow = 'hidden';
         
         if (isEditMode) {
             const hideBtn = document.createElement('button');
@@ -952,16 +668,13 @@ function renderAll() {
             hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
             hideBtn.style.border = '1px solid #cbd5e1';
             hideBtn.style.color = 'white';
-            hideBtn.style.flexShrink = '0';
+            hideBtn.style.marginRight = '6px';
             hideBtn.onclick = (() => { toggleHidden(item.key); });
             tdName.appendChild(hideBtn);
         }
         
         const nameSpan = document.createElement('span');
         nameSpan.innerText = item.name;
-        nameSpan.style.whiteSpace = 'nowrap';
-        nameSpan.style.overflow = 'hidden';
-        nameSpan.style.textOverflow = 'ellipsis';
         tdName.appendChild(nameSpan);
         row.appendChild(tdName);
 
@@ -1010,11 +723,194 @@ function renderAll() {
 
     renderEventRows(tbody, targetDate);
     renderDetailTable();
-    
-    // 列固定を適用（描画完了後）
-    setTimeout(() => {
-        applyStickyColumns();
-    }, 10);
+}
+
+// イベント行描画
+async function renderEventRows(tbody, targetDate) {
+    let events = [];
+    try {
+        const res = await fetch(EVENTS_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!validateEventData(data)) return;
+        events = data.events.filter(e => isEventActive(e, targetDate));
+    } catch(e) {
+        console.error('イベント取得失敗:', e);
+        return;
+    }
+
+    if (!events.length) return;
+
+    const dailyEvents = events.filter(e => e.resetType === 'daily');
+    const otherEvents = events.filter(e => e.resetType !== 'daily');
+
+    // 毎日イベント
+    if (dailyEvents.length) {
+        const secRow = document.createElement('tr');
+        secRow.className = 'section-row';
+        const secTd = document.createElement('td');
+        secTd.colSpan = 1 + characters.length;
+        secTd.style.padding = '4px 8px';
+        secTd.innerText = '▼ イベント（毎日）';
+        secRow.appendChild(secTd);
+        tbody.appendChild(secRow);
+
+        for (const event of dailyEvents) {
+            const isHiddenRow = isHidden(`event_${event.id}`);
+            if (!isEditMode && isHiddenRow) continue;
+            
+            const row = document.createElement('tr');
+            if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+            
+            const tdName = document.createElement('td');
+            tdName.className = 'task-name';
+            
+            if (isEditMode) {
+                const hideBtn = document.createElement('button');
+                hideBtn.innerText = isHiddenRow ? '✓' : '✗';
+                hideBtn.style.width = '28px';
+                hideBtn.style.height = '28px';
+                hideBtn.style.borderRadius = '8px';
+                hideBtn.style.cursor = 'pointer';
+                hideBtn.style.fontSize = '14px';
+                hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
+                hideBtn.style.border = '1px solid #cbd5e1';
+                hideBtn.style.color = 'white';
+                hideBtn.style.marginRight = '6px';
+                hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
+                tdName.appendChild(hideBtn);
+            }
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = event.name;
+            tdName.appendChild(nameSpan);
+            row.appendChild(tdName);
+
+            for (const ch of characters) {
+                const td = document.createElement('td');
+                const colBg = getColColor(ch.color);
+                td.style.backgroundColor = colBg;
+                
+                const disabled = isDisabled(`event_${event.id}`, ch.id);
+                
+                if (isEditMode) {
+                    const editButton = document.createElement('div');
+                    editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
+                    editButton.innerText = disabled ? '🔒' : '🔓';
+                    editButton.onclick = (function(ev, cid) {
+                        return function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleDisabled(`event_${ev.id}`, cid);
+                            return false;
+                        };
+                    })(event, ch.id);
+                    td.appendChild(editButton);
+                } else if (!isHiddenRow) {
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    if (disabled) {
+                        cb.disabled = true;
+                        cb.classList.add('disabled-checkbox');
+                    } else {
+                        cb.checked = isLimChecked(event, ch.id, targetDate);
+                        cb.addEventListener('change', (function(ev, cid, d) {
+                            return function(e) {
+                                setLimChecked(ev, cid, e.target.checked, d);
+                            };
+                        })(event, ch.id, targetDate));
+                    }
+                    td.appendChild(cb);
+                }
+                row.appendChild(td);
+            }
+            tbody.appendChild(row);
+        }
+    }
+
+    // 期間中1回イベント
+    if (otherEvents.length) {
+        const secRow = document.createElement('tr');
+        secRow.className = 'section-row';
+        const secTd = document.createElement('td');
+        secTd.colSpan = 1 + characters.length;
+        secTd.style.padding = '4px 8px';
+        secTd.innerText = '▼ イベント（期間中1回）';
+        secRow.appendChild(secTd);
+        tbody.appendChild(secRow);
+
+        for (const event of otherEvents) {
+            const isHiddenRow = isHidden(`event_${event.id}`);
+            if (!isEditMode && isHiddenRow) continue;
+            
+            const row = document.createElement('tr');
+            if (isHiddenRow && isEditMode) row.style.opacity = '0.5';
+            
+            const tdName = document.createElement('td');
+            tdName.className = 'task-name';
+            
+            if (isEditMode) {
+                const hideBtn = document.createElement('button');
+                hideBtn.innerText = isHiddenRow ? '✓' : '✗';
+                hideBtn.style.width = '28px';
+                hideBtn.style.height = '28px';
+                hideBtn.style.borderRadius = '8px';
+                hideBtn.style.cursor = 'pointer';
+                hideBtn.style.fontSize = '14px';
+                hideBtn.style.backgroundColor = isHiddenRow ? '#10b981' : '#ef4444';
+                hideBtn.style.border = '1px solid #cbd5e1';
+                hideBtn.style.color = 'white';
+                hideBtn.style.marginRight = '6px';
+                hideBtn.onclick = (() => { toggleHidden(`event_${event.id}`); });
+                tdName.appendChild(hideBtn);
+            }
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = event.name;
+            tdName.appendChild(nameSpan);
+            row.appendChild(tdName);
+
+            for (const ch of characters) {
+                const td = document.createElement('td');
+                const colBg = getColColor(ch.color);
+                td.style.backgroundColor = colBg;
+                
+                const disabled = isDisabled(`event_${event.id}`, ch.id);
+                
+                if (isEditMode) {
+                    const editButton = document.createElement('div');
+                    editButton.className = 'edit-button ' + (disabled ? 'edit-button-disabled' : 'edit-button-enabled');
+                    editButton.innerText = disabled ? '🔒' : '🔓';
+                    editButton.onclick = (function(ev, cid) {
+                        return function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleDisabled(`event_${ev.id}`, cid);
+                            return false;
+                        };
+                    })(event, ch.id);
+                    td.appendChild(editButton);
+                } else if (!isHiddenRow) {
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    if (disabled) {
+                        cb.disabled = true;
+                        cb.classList.add('disabled-checkbox');
+                    } else {
+                        cb.checked = isLimChecked(event, ch.id, targetDate);
+                        cb.addEventListener('change', (function(ev, cid, d) {
+                            return function(e) {
+                                setLimChecked(ev, cid, e.target.checked, d);
+                            };
+                        })(event, ch.id, targetDate));
+                    }
+                    td.appendChild(cb);
+                }
+                row.appendChild(td);
+            }
+            tbody.appendChild(row);
+        }
+    }
 }
 
 // ===== スタイル定義 =====
@@ -1024,7 +920,7 @@ const toolStyle = `
 <style>
 * { box-sizing: border-box; }
 body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background: #eef2f7; margin: 0; padding: 8px; color: #1e2f3f; }
-.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 20px; overflow: hidden; }
+.container { max-width: 100%; margin: 0 auto; background: white; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 6px 0 20px; overflow-x: auto; }
 .toolbar { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #e2edf2; }
 .toolbar input { padding: 5px 8px; font-size: 0.7rem; border: 1px solid #ccc; border-radius: 20px; width: 90px; }
 .toolbar input[type="color"] { width: 32px; height: 30px; border-radius: 20px; cursor: pointer; }
@@ -1033,15 +929,13 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 .edit-btn { background: #f59e0b !important; color: white !important; }
 .edit-mode-active { background: #10b981 !important; color: white !important; }
 .today-card { background: #fefce8; border-left: 3px solid #f5a623; margin: 6px 12px; padding: 4px 10px; border-radius: 10px; display: flex; justify-content: space-between; font-size: 0.65rem; flex-wrap: wrap; }
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.7rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.7rem; }
 th, td { border-bottom: 1px solid #e2edf2; padding: 5px 3px; text-align: center; vertical-align: middle; }
 th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
-.task-name { font-weight: 600; text-align: left; padding-left: 6px; font-size: 0.7rem; }
+.task-name { font-weight: 600; text-align: left; padding-left: 6px; white-space: nowrap; font-size: 0.7rem; }
 
 /* セクション行 */
 .section-row {
-    position: relative;
-    z-index: 3;
     background: #b8c7da !important;
     border-top: 2px solid #94a8c2;
     border-bottom: 2px solid #94a8c2;
@@ -1052,6 +946,7 @@ th { background: #e6edf4; font-weight: 600; font-size: 0.7rem; }
     color: #1e3a5f !important;
     font-weight: bold;
     letter-spacing: 0.5px;
+    text-align: left;
 }
 
 .detail-section-row td { background: #e9edf2; font-weight: bold; }
@@ -1089,18 +984,8 @@ body.dark-mode .today-card { background: #1f2937; border-left-color: #f59e0b; }
 body.dark-mode table { background: #111827; }
 body.dark-mode th { background: #1f2937; color: #fff; border-bottom-color: #374151; }
 body.dark-mode td { color: #fff; border-bottom-color: #2a3441; }
-
-/* ダークモード セクション行 */
-body.dark-mode .section-row {
-    background: #334155 !important;
-    border-top: 2px solid #475569;
-    border-bottom: 2px solid #475569;
-}
-
-body.dark-mode .section-row td {
-    color: #ffffff !important;
-}
-
+body.dark-mode .section-row { background: #334155 !important; border-top: 2px solid #475569; border-bottom: 2px solid #475569; }
+body.dark-mode .section-row td { color: #ffffff !important; }
 body.dark-mode .detail-section-row td { background: #2d3a4a; }
 body.dark-mode .char-name { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
@@ -1129,15 +1014,13 @@ global.DQXDailyChecker = {
 <button id="editModeBtn" class="edit-btn">✏️ 編集モード</button>
 </div>
 <div id="todayInfo" class="today-card"></div>
-<div style="overflow-x: auto; width: 100%;">
 <table id="mainTable">
 <thead id="tableHeader">
 <tr id="headerRow"><th>項目</th></tr>
 </thead>
 <tbody id="tableBody"></tbody>
 </table>
-</div>
-<div id="detailTableContainer" style="overflow-x: auto;"></div>
+<div id="detailTableContainer"></div>
 </div>
 `;
 
@@ -1165,10 +1048,6 @@ global.DQXDailyChecker = {
             currentObserver.disconnect();
             currentObserver = null;
         }
-        const addBtn = document.getElementById('addCharBtn');
-        const editBtn = document.getElementById('editModeBtn');
-        if (addBtn) addBtn.replaceWith(addBtn.cloneNode(true));
-        if (editBtn) editBtn.replaceWith(editBtn.cloneNode(true));
     }
 };
 ```
