@@ -647,51 +647,59 @@
         // ── 行を生成 ──
         for (const item of sectionsTemplate) {
             if (item.type === 'section') {
-                const isHiddenRow = isHidden(item.taskKey);
-                if (!isEditMode && isHiddenRow) continue;
+                // セクション行の描画
+const isHiddenRow = isHidden(item.taskKey);
+if (!isEditMode && isHiddenRow) continue;
 
-                // 左：セクション行
-                const lRow = document.createElement('tr');
-                lRow.className = 'section-row';
-                if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
-                const lTd = document.createElement('td');
-                lTd.style.padding = '4px 8px';
+// 左：セクション行（ラベルのみ）
+const lRow = document.createElement('tr');
+lRow.className = 'section-row';
+if (isHiddenRow && isEditMode) lRow.style.opacity = '0.5';
+const lTd = document.createElement('td');
+lTd.style.padding = '4px 8px';
 
-                const container = document.createElement('div');
-                container.style.display = 'flex';
-                container.style.alignItems = 'baseline';
-                container.style.gap = '6px';
+const container = document.createElement('div');
+container.style.display = 'flex';
+container.style.alignItems = 'baseline';
+container.style.gap = '6px';
 
-                if (isEditMode && item.taskKey) {
-                    const hideBtn = document.createElement('button');
-                    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
-                    Object.assign(hideBtn.style, { width:'26px', height:'26px', borderRadius:'6px', cursor:'pointer', fontSize:'13px',
-                        backgroundColor: isHiddenRow ? '#10b981' : '#ef4444', border:'1px solid #cbd5e1', color:'white' });
-                    hideBtn.onclick = () => toggleHidden(item.taskKey);
-                    container.appendChild(hideBtn);
-                }
-                const labelSpan = document.createElement('span');
-                labelSpan.innerText = item.label;
-                const nextText = getSectionNextText(item.cycleTaskId, targetDate);
-                if (nextText) {
-                    const nextSpan = document.createElement('span');
-                    nextSpan.innerText = nextText;
-                    nextSpan.style.fontSize = '0.6rem';
-                    nextSpan.style.opacity = '0.85';
-                    labelSpan.appendChild(nextSpan);
-                }
-                container.appendChild(labelSpan);
-                lTd.appendChild(container);
-                lRow.appendChild(lTd);
-                leftTbody.appendChild(lRow);
+if (isEditMode && item.taskKey) {
+    const hideBtn = document.createElement('button');
+    hideBtn.innerText = isHiddenRow ? '✓' : '✗';
+    Object.assign(hideBtn.style, {
+        width: '26px', height: '26px', borderRadius: '6px', cursor: 'pointer',
+        fontSize: '13px', backgroundColor: isHiddenRow ? '#10b981' : '#ef4444',
+        border: '1px solid #cbd5e1', color: 'white'
+    });
+    hideBtn.onclick = () => toggleHidden(item.taskKey);
+    container.appendChild(hideBtn);
+}
+const labelSpan = document.createElement('span');
+labelSpan.innerText = item.label;
+container.appendChild(labelSpan);
+lTd.appendChild(container);
+lRow.appendChild(lTd);
+leftTbody.appendChild(lRow);
 
-                // 右：セクション行（中身は空でよい）
-                const rRow = document.createElement('tr');
-                rRow.className = 'section-row';
-                const rTd = document.createElement('td');
-                rTd.colSpan = Math.max(characters.length, 1);
-                rRow.appendChild(rTd);
-                rightTbody.appendChild(rRow);
+// 右：セクション行（次回情報を中央に表示）
+const rRow = document.createElement('tr');
+rRow.className = 'section-row';
+if (isHiddenRow && isEditMode) rRow.style.opacity = '0.5';
+const rTd = document.createElement('td');
+rTd.colSpan = Math.max(characters.length, 1);
+rTd.style.textAlign = 'center';
+rTd.style.padding = '4px 8px';
+
+const nextText = getSectionNextText(item.cycleTaskId, targetDate);
+if (nextText) {
+    const nextSpan = document.createElement('span');
+    nextSpan.innerText = nextText;
+    nextSpan.style.fontSize = '0.65rem';
+    nextSpan.style.opacity = '0.85';
+    rTd.appendChild(nextSpan);
+}
+rRow.appendChild(rTd);
+rightTbody.appendChild(rRow);
                 continue;
             }
 
