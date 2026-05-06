@@ -749,10 +749,24 @@ rightTbody.appendChild(rRow);
                     cb.type = 'checkbox';
                     if (disabled) { cb.disabled = true; cb.classList.add('disabled-checkbox'); }
                     else {
-                        cb.checked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
-                        cb.addEventListener('change', (function(k, cid, d) {
-                            return function(e) { saveCheck(k, cid, e.target.checked, d); };
-                        })(item.key, ch.id, effectiveDate));
+                        // konmeiku未開催チェック
+let isKonmeikuClosed = false;
+if (item.taskId === 'konmeiku') {
+    const today = getJSTNow();
+    const day = getEffectiveDate(today).getDate();
+    isKonmeikuClosed = !((day >= 1 && day <= 5) || (day >= 15 && day <= 20));
+}
+
+if (isKonmeikuClosed) {
+    cb.disabled = true;
+    cb.checked = false;
+    cb.classList.add('disabled-checkbox');
+} else {
+    cb.checked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
+    cb.addEventListener('change', (function(k, cid, d) {
+        return function(e) { saveCheck(k, cid, e.target.checked, d); };
+    })(item.key, ch.id, effectiveDate));
+}
                     }
                     td.appendChild(cb);
                 }
