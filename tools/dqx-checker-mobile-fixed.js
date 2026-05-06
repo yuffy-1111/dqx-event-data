@@ -896,6 +896,18 @@ body.dark-mode .section-row td { color: #ffffff !important; }
 body.dark-mode #leftTable  .section-row td { background: #334155 !important; }
 body.dark-mode #rightTable .section-row td { background: #334155 !important; }
 body.dark-mode .detail-section-row td { background: #2d3a4a; }
+/* 詳細テーブルのtdを強制的にダークモード色に */
+body.dark-mode .detail-table td {
+    background-color: #111827 !important;
+    color: #e5e7eb !important;
+    border-bottom-color: #374151 !important;
+}
+
+/* ヘッダー行も合わせて */
+body.dark-mode .detail-table th {
+    background-color: #1f2937 !important;
+    color: #e5e7eb !important;
+}
 body.dark-mode .char-name   { color: #fff; }
 body.dark-mode .char-delete { color: #f88; }
 body.dark-mode .edit-mode-cell { background-color: #2a2a2a !important; }
