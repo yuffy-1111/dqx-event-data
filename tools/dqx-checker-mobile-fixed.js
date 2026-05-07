@@ -940,108 +940,76 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
 // ========== 呪文書き出し/読み込み機能 ==========
 (function() {
     // 変換マップ（ブログ版21タスク → 新規版23タスク）
-    // ブログ版のタスク順序に基づく
     const BLOG_TO_NEW_MAP = {
-        0: [0],           // 日替わり討伐 → 日替わり討伐
-        1: [1],           // 咎人デイリー → 深淵の咎人(ﾗｸﾘﾏ)（果実はfalse）
-        2: 4,   // 週替わり討伐
-        3: 5,   // エピソード依頼帳
-        4: 6,   // トレーニー育成帳
-        5: 7,   // 達人クエスト
-        6: 8,   // 王家の迷宮
-        7: 9,   // ピラミッド
-        8: 10,  // 万魔の塔
-        9: 11,  // アスタルジア探索
-        10: 12, // 皇帝の創りしもの
-        11: 13, // ヴァリーブートキャンプ
-        12: 15, // ロスター → ロスターのお題
-        13: 16, // 黄昏の奏戦記
-        14: 17, // レモンスライムクイズ
-        15: 18, // 邪神の宮殿
-        16: 19, // 異界の闘技場
-        17: 20, // パニガルム → 現世庫パニガルム
-        18: 21, // 昏冥庫 → 昏冥庫パニガルム
-        19: 22, // 覚醒の秘石
-        20: 23  // 宝珠P → 宝珠ポイント
+        0: [0], 1: [1], 2: 4, 3: 5, 4: 6, 5: 7, 6: 8, 7: 9, 8: 10, 9: 11,
+        10: 12, 11: 13, 12: 15, 13: 16, 14: 17, 15: 18, 16: 19, 17: 20, 18: 21, 19: 22, 20: 23
     };
 
     function getTasksFromTemplate() {
-        return sectionsTemplate.filter(item => !item.type);
+        return window.sectionsTemplate || [];
     }
 
-    // ========== 書き出し（新規版フォーマット） ==========
-    function exportSpell() {
-        if (characters.length === 0) {
-            alert('キャラクターが登録されていません');
-            return;
-        }
-
+    // キャラデータとチェックを取得（新規版用）
+    function getCurrentCheckBits() {
+        if (typeof characters === 'undefined') return null;
         const targetDate = getJSTNow();
         const effectiveDate = getEffectiveDate(targetDate);
-        const tasks = getTasksFromTemplate();
-
+        const tasks = getTasksFromTemplate().filter(item => !item.type);
+        
         const charDataList = [];
-
         for (let ch of characters) {
             const firstChar = ch.name.charAt(0);
             const colorCode = ch.color.slice(1);
-            
             let bits = "";
             for (let item of tasks) {
                 const isChecked = loadCheck(item.key, ch.id, effectiveDate, item.taskId);
                 bits += isChecked ? "1" : "0";
             }
-            
-            // ビット→Base64
             const bytes = [];
             for (let i = 0; i < bits.length; i += 8) {
                 const byteStr = bits.slice(i, i + 8).padEnd(8, '0');
                 bytes.push(parseInt(byteStr, 2));
             }
-            
             let checksBase64 = '';
             if (bytes.length > 0) {
                 checksBase64 = btoa(String.fromCharCode(...bytes));
                 checksBase64 = checksBase64.replace(/\//g, '-').replace(/\+/g, '_');
             }
-            
             charDataList.push(firstChar + colorCode + checksBase64);
         }
-        
-        const spell = 'XN' + charDataList.join('');
-        
-        navigator.clipboard.writeText(spell).then(() => {
-            alert(`✓ 復活の呪文をコピーしました！\n${spell.length}文字`);
-        }).catch(() => {
-            alert('コピーに失敗しました');
-        });
+        return charDataList;
     }
 
-    // ========== ブログ版からの読み込み（変換付き） ==========
+    function exportSpell() {
+        if (typeof characters === 'undefined' || characters.length === 0) {
+            alert('キャラクターが登録されていません');
+            return;
+        }
+        const charDataList = getCurrentCheckBits();
+        if (!charDataList) return;
+        const spell = 'XN' + charDataList.join('');
+        navigator.clipboard.writeText(spell).then(() => {
+            alert(`✓ 復活の呪文をコピーしました！\n${spell.length}文字`);
+        }).catch(() => alert('コピー失敗'));
+    }
+
     function importBlogFormat(spellWithoutMarker) {
-        // ブログ版フォーマット: X + キャラ情報 + チェックBase64
         let remaining = spellWithoutMarker;
         const newCharacters = [];
         const newChecksList = [];
         
-        // キャラ情報を解析（頭文字1 + カラー6 = 7文字 + 可変長Base64）
-        let idx = 0;
-        while (remaining.length > 0 && idx < 10) { // 最大10キャラ
+        while (remaining.length > 0 && newCharacters.length < 10) {
             if (remaining.length < 7) break;
-            
             const firstChar = remaining.charAt(0);
             const colorCode = remaining.slice(1, 7);
             remaining = remaining.slice(7);
             
-            // チェックBase64部分を抽出（次のキャラまで = 次の頭文字出現まで）
             let checksBase64 = '';
             let foundNext = false;
             for (let i = 0; i < remaining.length; i++) {
                 const c = remaining.charAt(i);
-                // 頭文字は英数字1文字の後に6文字のカラーが続くパターン
                 if (i + 6 < remaining.length && /[A-Za-z0-9]/.test(c)) {
-                    const nextColorStart = i + 1;
-                    if (nextColorStart + 6 <= remaining.length && /^[0-9a-f]{6}$/i.test(remaining.slice(nextColorStart, nextColorStart + 6))) {
+                    if (/^[0-9a-f]{6}$/i.test(remaining.slice(i + 1, i + 7))) {
                         foundNext = true;
                         checksBase64 = remaining.slice(0, i);
                         remaining = remaining.slice(i);
@@ -1054,22 +1022,15 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
                 remaining = '';
             }
             
-            // Base64復元
             checksBase64 = checksBase64.replace(/-/g, '/').replace(/_/g, '+');
             let bits = '';
             try {
                 const bytes = Uint8Array.from(atob(checksBase64), c => c.charCodeAt(0));
-                for (let b of bytes) {
-                    bits += b.toString(2).padStart(8, '0');
-                }
-            } catch(e) {
-                bits = '';
-            }
+                for (let b of bytes) bits += b.toString(2).padStart(8, '0');
+            } catch(e) { bits = ''; }
             
-            const color = '#' + colorCode;
-            newCharacters.push({ name: firstChar, color: color });
+            newCharacters.push({ name: firstChar, color: '#' + colorCode });
             newChecksList.push(bits);
-            idx++;
         }
         
         if (newCharacters.length === 0) {
@@ -1077,73 +1038,56 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             return false;
         }
         
-        // ブログ版のタスク数は最大21（新規版は23）
-        // 各キャラのチェック状態を変換
+        // 変換（21→23）
         const convertedChecks = newChecksList.map(blogBits => {
             const newBits = new Array(23).fill('0');
-            const maxLen = Math.min(blogBits.length, 21);
-            for (let i = 0; i < maxLen; i++) {
+            for (let i = 0; i < Math.min(blogBits.length, 21); i++) {
                 const target = BLOG_TO_NEW_MAP[i];
-                if (target === undefined) continue;
-                if (blogBits[i] === '1') {
-                    if (Array.isArray(target)) {
-                        newBits[target[0]] = '1';
-                        // 果実(target[1])はfalseのまま
-                    } else {
-                        newBits[target] = '1';
-                    }
+                if (target !== undefined && blogBits[i] === '1') {
+                    if (Array.isArray(target)) newBits[target[0]] = '1';
+                    else newBits[target] = '1';
                 }
             }
             return newBits.join('');
         });
         
-        // キャラクター保存
-        characters = [];
+        // 保存
+        window.characters = [];
         let newId = 1;
         for (let i = 0; i < newCharacters.length; i++) {
-            characters.push({
-                id: newId++,
-                name: newCharacters[i].name,
-                color: newCharacters[i].color
-            });
+            window.characters.push({ id: newId++, name: newCharacters[i].name, color: newCharacters[i].color });
         }
         saveCharacters();
         
-        // チェック状態保存
-        const tasks = getTasksFromTemplate();
-        const todayDate = getJSTNow();
-        const effectiveDate = getEffectiveDate(todayDate);
-        
-        for (let c = 0; c < characters.length; c++) {
+        const tasks = getTasksFromTemplate().filter(item => !item.type);
+        const effectiveDate = getEffectiveDate(getJSTNow());
+        for (let c = 0; c < window.characters.length; c++) {
             const bits = convertedChecks[c];
             if (!bits) continue;
             for (let t = 0; t < tasks.length && t < bits.length; t++) {
                 if (bits[t] === '1') {
-                    const task = tasks[t];
-                    saveCheck(task.key, characters[c].id, true, effectiveDate);
+                    saveCheck(tasks[t].key, window.characters[c].id, true, effectiveDate);
                 }
             }
         }
         
-        // 無効マップはデフォルト空
-        disabledMap.clear();
-        saveDisabled();
+        if (typeof disabledMap !== 'undefined') {
+            disabledMap.clear();
+            saveDisabled();
+        }
         
-        renderAll();
-        alert(`✓ ブログ版の呪文から復元しました！（${characters.length}キャラ）`);
+        if (typeof renderAll === 'function') renderAll();
+        alert(`✓ ブログ版から復元！（${window.characters.length}キャラ）`);
         return true;
     }
 
-    // ========== 新規版フォーマット読み込み ==========
     function importNewFormat(spellWithoutMarker) {
         let remaining = spellWithoutMarker;
         const newCharacters = [];
         const newChecksList = [];
         
-        let idx = 0;
-        while (remaining.length > 0 && idx < 10) {
+        while (remaining.length > 0 && newCharacters.length < 10) {
             if (remaining.length < 7) break;
-            
             const firstChar = remaining.charAt(0);
             const colorCode = remaining.slice(1, 7);
             remaining = remaining.slice(7);
@@ -1153,8 +1097,7 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             for (let i = 0; i < remaining.length; i++) {
                 const c = remaining.charAt(i);
                 if (i + 6 < remaining.length && /[A-Za-z0-9]/.test(c)) {
-                    const nextColorStart = i + 1;
-                    if (nextColorStart + 6 <= remaining.length && /^[0-9a-f]{6}$/i.test(remaining.slice(nextColorStart, nextColorStart + 6))) {
+                    if (/^[0-9a-f]{6}$/i.test(remaining.slice(i + 1, i + 7))) {
                         foundNext = true;
                         checksBase64 = remaining.slice(0, i);
                         remaining = remaining.slice(i);
@@ -1171,17 +1114,11 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             let bits = '';
             try {
                 const bytes = Uint8Array.from(atob(checksBase64), c => c.charCodeAt(0));
-                for (let b of bytes) {
-                    bits += b.toString(2).padStart(8, '0');
-                }
-            } catch(e) {
-                bits = '';
-            }
+                for (let b of bytes) bits += b.toString(2).padStart(8, '0');
+            } catch(e) { bits = ''; }
             
-            const color = '#' + colorCode;
-            newCharacters.push({ name: firstChar, color: color });
+            newCharacters.push({ name: firstChar, color: '#' + colorCode });
             newChecksList.push(bits);
-            idx++;
         }
         
         if (newCharacters.length === 0) {
@@ -1189,103 +1126,77 @@ body.dark-mode .edit-button-disabled { background-color: #f59e0b; border-color: 
             return false;
         }
         
-        // キャラクター保存
-        characters = [];
+        window.characters = [];
         let newId = 1;
         for (let i = 0; i < newCharacters.length; i++) {
-            characters.push({
-                id: newId++,
-                name: newCharacters[i].name,
-                color: newCharacters[i].color
-            });
+            window.characters.push({ id: newId++, name: newCharacters[i].name, color: newCharacters[i].color });
         }
         saveCharacters();
         
-        // チェック状態保存
-        const tasks = getTasksFromTemplate();
-        const todayDate = getJSTNow();
-        const effectiveDate = getEffectiveDate(todayDate);
-        
-        for (let c = 0; c < characters.length; c++) {
+        const tasks = getTasksFromTemplate().filter(item => !item.type);
+        const effectiveDate = getEffectiveDate(getJSTNow());
+        for (let c = 0; c < window.characters.length; c++) {
             const bits = newChecksList[c];
             if (!bits) continue;
             for (let t = 0; t < tasks.length && t < bits.length; t++) {
                 if (bits[t] === '1') {
-                    const task = tasks[t];
-                    saveCheck(task.key, characters[c].id, true, effectiveDate);
+                    saveCheck(tasks[t].key, window.characters[c].id, true, effectiveDate);
                 }
             }
         }
         
-        disabledMap.clear();
-        saveDisabled();
+        if (typeof disabledMap !== 'undefined') {
+            disabledMap.clear();
+            saveDisabled();
+        }
         
-        renderAll();
-        alert(`✓ 新規版の呪文から復元しました！（${characters.length}キャラ）`);
+        if (typeof renderAll === 'function') renderAll();
+        alert(`✓ 新規版の呪文から復元！（${window.characters.length}キャラ）`);
         return true;
     }
 
-    // ========== 読み込みメイン（自動識別） ==========
     function promptImportSpell() {
         const spell = prompt('復活の呪文を入力してください', '');
         if (!spell) return;
-        
-        if (spell.startsWith('XB')) {
-            importBlogFormat(spell.slice(2));
-        } else if (spell.startsWith('XN')) {
-            importNewFormat(spell.slice(2));
-        } else if (spell.startsWith('X')) {
-            // 旧ブログ版（マーカーのみX）
-            importBlogFormat(spell.slice(1));
-        } else {
-            alert('無効な呪文です（先頭が XB, XN, X になっている必要があります）');
-        }
+        if (spell.startsWith('XB')) importBlogFormat(spell.slice(2));
+        else if (spell.startsWith('XN')) importNewFormat(spell.slice(2));
+        else if (spell.startsWith('X')) importBlogFormat(spell.slice(1));
+        else alert('無効な呪文です（先頭が XB, XN, X である必要があります）');
     }
 
-    // ツールバーにボタンを追加する関数（render時に呼び出す）
     function addSpellButtons() {
         const toolbar = document.getElementById('toolbar');
         if (!toolbar) return;
-        
-        // 既存のボタンをチェック
         if (document.getElementById('exportSpellBtn')) return;
         
         const exportBtn = document.createElement('button');
         exportBtn.id = 'exportSpellBtn';
         exportBtn.innerText = '📋 書き出し';
-        exportBtn.style.background = '#10b981 !important';
-        exportBtn.style.color = 'white !important';
+        exportBtn.style.cssText = 'background:#10b981 !important; color:white !important;';
         exportBtn.addEventListener('click', exportSpell);
         
         const importBtn = document.createElement('button');
         importBtn.id = 'importSpellBtn';
         importBtn.innerText = '🔮 呪文読み込み';
-        importBtn.style.background = '#8b5cf6 !important';
-        importBtn.style.color = 'white !important';
+        importBtn.style.cssText = 'background:#8b5cf6 !important; color:white !important;';
         importBtn.addEventListener('click', promptImportSpell);
         
         toolbar.appendChild(exportBtn);
         toolbar.appendChild(importBtn);
     }
     
-    // 初期化完了後にボタン追加
-    const originalRender = window.DQXDailyChecker?.render;
-    if (typeof window.DQXDailyChecker !== 'undefined') {
-        const origRender = window.DQXDailyChecker.render;
-        window.DQXDailyChecker.render = function(containerSelector) {
-            origRender(containerSelector);
-            setTimeout(addSpellButtons, 100);
-        };
+    // 既存のrenderAllをフック
+    const originalRenderAll = typeof renderAll !== 'undefined' ? renderAll : null;
+    if (typeof window !== 'undefined') {
+        // 少し遅らせて実行（DOMができてから）
+        setTimeout(function waitForToolbar() {
+            if (document.getElementById('toolbar')) {
+                addSpellButtons();
+            } else {
+                setTimeout(waitForToolbar, 500);
+            }
+        }, 1000);
     }
-    
-    // グローバルに公開（後で使えるように）
-    window._spellFunctions = {
-        exportSpell,
-        importBlogFormat,
-        importNewFormat,
-        promptImportSpell,
-        addSpellButtons
-    };
 })();
     // ===== 外部公開 =====
     global.DQXDailyChecker = {
