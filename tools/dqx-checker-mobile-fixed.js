@@ -530,7 +530,8 @@ function importSpell(spell) {
     // ----- 旧形式 (X: ブログ版21項目) -----
     if (marker === SPELL_MARKER_BLOG) {
     const records = spell.split(SPELL_RECORD_SEP);
-    
+    let addedCount = 0;
+
     for (let recIdx = 0; recIdx < records.length; recIdx++) {
         const rec = records[recIdx].trim();
         if (!rec) continue;
@@ -538,17 +539,17 @@ function importSpell(spell) {
             alert(`レコード ${recIdx+1} の形式が不正です（X|... で始まりません）`);
             continue;
         }
-        // 修正箇所: slice(2) で "X|" を丸ごと除去
-        const parts = rec.slice(2).split(SPELL_FIELD_SEP);
+        // slice(1) のまま（変更しない）
+        const parts = rec.slice(1).split(SPELL_FIELD_SEP);
         if (parts.length < 4) {
             alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
             continue;
         }
-        const name = parts[0];           // 正しく名前が取れる
-        const colorHex = '#' + parts[1]; // 正しくカラーが取れる
-        const checkB64 = parts[2];
-        const lockB64 = parts[3];
-        // ... 以降の処理
+        // 空要素対策：インデックスをずらす
+        const name = parts[1];      // parts[0]は空文字なのでparts[1]が名前
+        const colorHex = '#' + parts[2];
+        const checkB64 = parts[3];
+        const lockB64 = parts[4];
     }
 }
 
