@@ -529,26 +529,50 @@ function importSpell(spell) {
 
     // ----- 旧形式 (X: ブログ版21項目) -----
     if (marker === SPELL_MARKER_BLOG) {
-        const blogTaskCount = Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length; // 21項目
-        const records = spell.split(SPELL_RECORD_SEP);
-        let addedCount = 0;
+    const records = spell.split(SPELL_RECORD_SEP);
+    
+    for (let recIdx = 0; recIdx < records.length; recIdx++) {
+        const rec = records[recIdx].trim();
+        if (!rec) continue;
+        if (!rec.startsWith(SPELL_MARKER_BLOG + SPELL_FIELD_SEP)) {
+            alert(`レコード ${recIdx+1} の形式が不正です（X|... で始まりません）`);
+            continue;
+        }
+        // 修正箇所: slice(2) で "X|" を丸ごと除去
+        const parts = rec.slice(2).split(SPELL_FIELD_SEP);
+        if (parts.length < 4) {
+            alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
+            continue;
+        }
+        const name = parts[0];           // 正しく名前が取れる
+        const colorHex = '#' + parts[1]; // 正しくカラーが取れる
+        const checkB64 = parts[2];
+        const lockB64 = parts[3];
+        // ... 以降の処理
+    }
+}
 
-        for (let recIdx = 0; recIdx < records.length; recIdx++) {
-            const rec = records[recIdx].trim();
-            if (!rec) continue;
-            if (!rec.startsWith(SPELL_MARKER_BLOG + SPELL_FIELD_SEP)) {
-                alert(`レコード ${recIdx+1} の形式が不正です（X|... で始まりません）`);
-                continue;
-            }
-            const parts = rec.slice(1).split(SPELL_FIELD_SEP);
-            if (parts.length < 4) {
-                alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
-                continue;
-            }
-            const name = parts[0];
-            const colorHex = '#' + parts[1];
-            const checkB64 = parts[2];
-            const lockB64 = parts[3];
+// Y形式の場合も同様
+if (marker === SPELL_MARKER_MOBILE) {
+    const records = spell.split(SPELL_RECORD_SEP);
+    
+    for (let recIdx = 0; recIdx < records.length; recIdx++) {
+        const rec = records[recIdx].trim();
+        if (!rec) continue;
+        if (!rec.startsWith(SPELL_MARKER_MOBILE + SPELL_FIELD_SEP)) {
+            alert(`レコード ${recIdx+1} の形式が不正です（Y|... で始まりません）`);
+            continue;
+        }
+        // 修正箇所: slice(2) で "Y|" を丸ごと除去
+        const parts = rec.slice(2).split(SPELL_FIELD_SEP);
+        if (parts.length < 4) {
+            alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
+            continue;
+        }
+        const name = parts[0];           // 正しく名前が取れる
+        const colorHex = '#' + parts[1]; // 正しくカラーが取れる
+        const checkB64 = parts[2];
+        const lockB64 = parts[3];
 
             // チェックビット復元（21項目）
             let checkBits = base64ToBits(checkB64, blogTaskCount);
