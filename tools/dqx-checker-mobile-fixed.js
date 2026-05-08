@@ -526,73 +526,40 @@ function importSpell(spell) {
     const targetDate = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
     const taskItems = sectionsTemplate.filter(item => !item.type);
-
-    // ----- 旧形式 (X: ブログ版21項目) -----
-    if (marker === SPELL_MARKER_BLOG) {
     const records = spell.split(SPELL_RECORD_SEP);
     let addedCount = 0;
 
-    for (let recIdx = 0; recIdx < records.length; recIdx++) {
-        const rec = records[recIdx].trim();
-        if (!rec) continue;
-        if (!rec.startsWith(SPELL_MARKER_BLOG + SPELL_FIELD_SEP)) {
-            alert(`レコード ${recIdx+1} の形式が不正です（X|... で始まりません）`);
-            continue;
-        }
-        // slice(1) のまま（変更しない）
-        const parts = rec.slice(1).split(SPELL_FIELD_SEP);
-        if (parts.length < 4) {
-            alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
-            continue;
-        }
-        // 空要素対策：インデックスをずらす
-        const name = parts[1];      // parts[0]は空文字なのでparts[1]が名前
-        const colorHex = '#' + parts[2];
-        const checkB64 = parts[3];
-        const lockB64 = parts[4];
-    }
-}
+    // ----- 旧形式 (X: ブログ版21項目) -----
+    if (marker === SPELL_MARKER_BLOG) {
+        const blogTaskCount = Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length; // 21
 
-// Y形式の場合も同様
-if (marker === SPELL_MARKER_MOBILE) {
-    const records = spell.split(SPELL_RECORD_SEP);
-    
-    for (let recIdx = 0; recIdx < records.length; recIdx++) {
-        const rec = records[recIdx].trim();
-        if (!rec) continue;
-        if (!rec.startsWith(SPELL_MARKER_MOBILE + SPELL_FIELD_SEP)) {
-            alert(`レコード ${recIdx+1} の形式が不正です（Y|... で始まりません）`);
-            continue;
-        }
-        // 修正箇所: slice(2) で "Y|" を丸ごと除去
-        const parts = rec.slice(2).split(SPELL_FIELD_SEP);
-        if (parts.length < 4) {
-            alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
-            continue;
-        }
-        const name = parts[0];           // 正しく名前が取れる
-        const colorHex = '#' + parts[1]; // 正しくカラーが取れる
-        const checkB64 = parts[2];
-        const lockB64 = parts[3];
-
-            // チェックビット復元（21項目）
-            let checkBits = base64ToBits(checkB64, blogTaskCount);
-            if (checkBits === null) {
-                alert(`レコード ${recIdx+1} のチェックデータ解析に失敗`);
+        for (let recIdx = 0; recIdx < records.length; recIdx++) {
+            const rec = records[recIdx].trim();
+            if (!rec) continue;
+            if (!rec.startsWith(SPELL_MARKER_BLOG + SPELL_FIELD_SEP)) {
+                console.warn(`レコード ${recIdx+1} をスキップ（X|で始まらない）`);
                 continue;
             }
-            // ロックビット復元（21項目）
-            let lockBits = base64ToBits(lockB64, blogTaskCount);
-            if (lockBits === null) {
-                alert(`レコード ${recIdx+1} のロックデータ解析に失敗`);
+            // "X|名前|色|check|lock" → slice(2)で "名前|色|check|lock"
+            const parts = rec.slice(2).split(SPELL_FIELD_SEP);
+            if (parts.length < 4) {
+                alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
                 continue;
             }
+            const name     = parts[0];
+            const colorHex = '#' + parts[1];
+            const checkB64 = parts[2];
+            const lockB64  = parts[3];
 
-            // キャラ追加（名前は呪文からそのまま使用）
+            const checkBits = base64ToBits(checkB64, blogTaskCount);
+            if (checkBits === null) { alert(`レコード ${recIdx+1} のチェックデータ解析に失敗`); continue; }
+
+            const lockBits = base64ToBits(lockB64, blogTaskCount);
+            if (lockBits === null) { alert(`レコード ${recIdx+1} のロックデータ解析に失敗`); continue; }
+
             const newId = nextId++;
             characters.push({ id: newId, name: name, color: colorHex });
 
-            // チェック状態を適用（ブログ版インデックス順 → mobileキー）
             for (let idx = 0; idx < blogTaskCount; idx++) {
                 const mKey = BLOG_INDEX_TO_MOBILE_KEY[idx];
                 if (!mKey) continue;
@@ -600,12 +567,6 @@ if (marker === SPELL_MARKER_MOBILE) {
                     const item = taskItems.find(t => t.key === mKey);
                     if (item) saveCheck(mKey, newId, true, effectiveDate);
                 }
-            }
-
-            // ロック状態を適用（ブログ版インデックス順 → mobileキー）
-            for (let idx = 0; idx < blogTaskCount; idx++) {
-                const mKey = BLOG_INDEX_TO_MOBILE_KEY[idx];
-                if (!mKey) continue;
                 if (lockBits[idx] === '1') {
                     setDisabled(mKey, newId, true);
                 }
@@ -613,15 +574,55 @@ if (marker === SPELL_MARKER_MOBILE) {
             addedCount++;
         }
 
-        if (addedCount === 0) {
-            alert('有効なデータがありませんでした');
-            return;
+    // ----- 新形式 (Y: 23項目) -----
+    } else {
+        const expectedTaskCount = MOBILE_TASK_KEYS.length; // 23
+
+        for (let recIdx = 0; recIdx < records.length; recIdx++) {
+            const rec = records[recIdx].trim();
+            if (!rec) continue;
+            if (!rec.startsWith(SPELL_MARKER_MOBILE + SPELL_FIELD_SEP)) {
+                console.warn(`レコード ${recIdx+1} をスキップ（Y|で始まらない）`);
+                continue;
+            }
+            // "Y|名前|色|check|lock" → slice(2)で "名前|色|check|lock"
+            const parts = rec.slice(2).split(SPELL_FIELD_SEP);
+            if (parts.length < 4) {
+                alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
+                continue;
+            }
+            const name     = parts[0];
+            const colorHex = '#' + parts[1];
+            const checkB64 = parts[2];
+            const lockB64  = parts[3];
+
+            const checkBits = base64ToBits(checkB64, expectedTaskCount);
+            if (checkBits === null) { alert(`レコード ${recIdx+1} のチェックデータ解析に失敗`); continue; }
+
+            const lockBits = base64ToBits(lockB64, expectedTaskCount);
+            if (lockBits === null) { alert(`レコード ${recIdx+1} のロックデータ解析に失敗`); continue; }
+
+            const newId = nextId++;
+            characters.push({ id: newId, name: name, color: colorHex });
+
+            for (let idx = 0; idx < MOBILE_TASK_KEYS.length; idx++) {
+                const mKey = MOBILE_TASK_KEYS[idx];
+                const item = taskItems.find(t => t.key === mKey);
+                if (item && checkBits[idx] === '1') saveCheck(mKey, newId, true, effectiveDate);
+                if (lockBits[idx] === '1') setDisabled(mKey, newId, true);
+            }
+            addedCount++;
         }
-        saveCharacters();
-        alert(`✓ ${addedCount}人分のデータを読み込みました！`);
-        renderAll();
+    }
+
+    if (addedCount === 0) {
+        alert('有効なデータがありませんでした');
         return;
     }
+    saveCharacters();
+    alert(`✓ ${addedCount}人分のデータを読み込みました！`);
+    renderAll();
+}
 
     // ----- 新形式 (Y: 23項目) -----
     // 書式: Y|名前|カラー|チェックB64|ロックB64; Y|名前|カラー|チェックB64|ロックB64; ...
