@@ -439,13 +439,41 @@ function loadCheck(taskKey, charId, todayDate, taskId) {
     } catch(e) { return false; }
 }
 
+// ===== ビット列 ⇔ Base64 変換（新フォーマット用） =====
+function bitsToBase64(bits) {
+    let paddedBits = bits;
+    while (paddedBits.length % 8 !== 0) {
+        paddedBits += '0';
+    }
+    const bytes = [];
+    for (let i = 0; i < paddedBits.length; i += 8) {
+        bytes.push(parseInt(paddedBits.slice(i, i + 8), 2));
+    }
+    let b64 = btoa(String.fromCharCode(...bytes))
+        .replace(/\//g, '-')
+        .replace(/\+/g, '_')
+        .replace(/=/g, '');
+    return b64;
+}
+
+function base64ToBits(b64) {
+    let b64Padded = b64.replace(/-/g, '/').replace(/_/g, '+');
+    while (b64Padded.length % 4 !== 0) b64Padded += '=';
+    let bits = '';
+    try {
+        const decoded = atob(b64Padded);
+        for (let j = 0; j < decoded.length; j++) {
+            bits += decoded.charCodeAt(j).toString(2).padStart(8, '0');
+        }
+    } catch(e) {
+        console.error('Base64 decode error:', e);
+        return '';
+    }
+    return bits;
+}
+
 // ===== 書き出し・読み込み =====
 
-/**
- * mobile-fixed版の呪文を生成（マーカー: Y）
- * フォーマット: Y + [頭文字(1) + カラー(6) + チェックBits(Base64)] * キャラ数
- * ビット列順: MOBILE_TASK_KEYS の順
- */
 function exportSpell() {
     if (characters.length === 0) {
         alert('キャラクターが登録されていません');
@@ -455,33 +483,33 @@ function exportSpell() {
     const targetDate = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
     const taskItems = sectionsTemplate.filter(item => !item.type);
-
+    
     const charDataList = [];
+    
     for (const ch of characters) {
-        const firstChar = ch.name.charAt(0);
-        const colorCode = ch.color.replace('#', '').toLowerCase();
-
-        // MOBILE_TASK_KEYS 順でビット列生成
-        let bits = '';
+        // チェック状態のビット列生成（MOBILE_TASK_KEYS順）
+        let checksBits = '';
         for (const mKey of MOBILE_TASK_KEYS) {
             const item = taskItems.find(t => t.key === mKey);
             const isChecked = item ? loadCheck(mKey, ch.id, effectiveDate, item.taskId) : false;
-            bits += isChecked ? '1' : '0';
+            checksBits += isChecked ? '1' : '0';
         }
-
-        // ビット列 → Base64
-        const bytes = [];
-        for (let i = 0; i < bits.length; i += 8) {
-            bytes.push(parseInt(bits.slice(i, i + 8).padEnd(8, '0'), 2));
+        
+        // ロック状態のビット列生成（同じ順）
+        let locksBits = '';
+        for (const mKey of MOBILE_TASK_KEYS) {
+            locksBits += isDisabled(mKey, ch.id) ? '1' : '0';
         }
-        let b64 = btoa(String.fromCharCode(...bytes))
-            .replace(/\//g, '-').replace(/\+/g, '_').replace(/=/g, '');
-
-        charDataList.push(firstChar + colorCode + b64);
+        
+        const checksBase64 = bitsToBase64(checksBits);
+        const locksBase64 = bitsToBase64(locksBits);
+        
+        const colorHex = ch.color.replace('#', '').toLowerCase();
+        charDataList.push(`${ch.name}|${colorHex}|${checksBase64}|${locksBase64}`);
     }
-
-    const spell = SPELL_MARKER_MOBILE + charDataList.join('');
-
+    
+    const spell = SPELL_MARKER_MOBILE + charDataList.join(';');
+    
     navigator.clipboard.writeText(spell).then(() => {
         alert(`✓ 呪文をコピーしました！\n${spell.length}文字`);
     }).catch(() => {
@@ -489,11 +517,6 @@ function exportSpell() {
     });
 }
 
-/**
- * 呪文からキャラ＋チェック情報を復元
- * Y始まり → mobile版として解析
- * X始まり → ブログ版として解析しmobileキーに変換
- */
 function importSpell(spell) {
     spell = (spell || '').trim();
     if (!spell) { alert('呪文を入力してください'); return; }
@@ -505,83 +528,80 @@ function importSpell(spell) {
     }
 
     const isBlog = (marker === SPELL_MARKER_BLOG);
-    // ビット列の長さ
-    const taskCount = isBlog ? Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length : MOBILE_TASK_KEYS.length;
-    // Base64の長さ: ceil(taskCount / 8) バイト → Base64文字数 = ceil(bytes * 4/3) padding除く
-    const byteCount = Math.ceil(taskCount / 8);
-    // Base64: 3バイト→4文字。paddingなし
-    const b64Len = Math.ceil(byteCount * 4 / 3);
-    // 1キャラ分の長さ: 頭文字(1) + カラー(6) + Base64(b64Len)
-    const charBlockLen = 1 + 6 + b64Len;
+    const targetDate = getJSTNow();
+    const effectiveDate = getEffectiveDate(targetDate);
+    const taskItems = sectionsTemplate.filter(item => !item.type);
 
-    const body = spell.slice(1);
-    if (body.length % charBlockLen !== 0) {
-        alert(`呪文の形式が不正です（長さ不一致: ${body.length} / ${charBlockLen}）`);
+    // 新フォーマット判定（セミコロンとパイプを含むか）
+    const isNewFormat = spell.includes(';') && spell.includes('|');
+    
+    if (!isNewFormat) {
+        alert('古い形式の呪文です。新しいバージョンでは読み込めません。\n最新のツールで再エクスポートしてください。');
         return;
     }
 
-    const charCount = body.length / charBlockLen;
-    if (charCount === 0) { alert('キャラクターデータがありません'); return; }
+    // 新フォーマット処理
+    const charBlocks = spell.slice(1).split(';');
+    let importedCount = 0;
 
-    const targetDate = getJSTNow();
-    const effectiveDate = getEffectiveDate(targetDate);
-
-    // 確認
-    if (!confirm(`${charCount}人分のデータを読み込みます。\n現在のデータに追加しますか？\n（既存キャラは上書きしません）`)) return;
-
-    for (let i = 0; i < charCount; i++) {
-        const block = body.slice(i * charBlockLen, (i + 1) * charBlockLen);
-        const firstName = block.charAt(0);
-        const colorHex = '#' + block.slice(1, 7);
-        const b64 = block.slice(7);
-
-        // Base64 → ビット列
-        let b64Padded = b64.replace(/-/g, '/').replace(/_/g, '+');
-        while (b64Padded.length % 4 !== 0) b64Padded += '=';
-        let bits = '';
-        try {
-            const decoded = atob(b64Padded);
-            for (let j = 0; j < decoded.length; j++) {
-                bits += decoded.charCodeAt(j).toString(2).padStart(8, '0');
-            }
-        } catch(e) {
-            alert(`キャラ${i+1}のデータ解析に失敗しました`);
+    for (const block of charBlocks) {
+        if (!block.trim()) continue;
+        
+        const parts = block.split('|');
+        if (parts.length < 4) {
+            console.warn('不正なブロック形式:', block);
             continue;
         }
-
-        // キャラ追加
+        
+        const [name, colorHex, checksBase64, locksBase64] = parts;
+        
+        const checksBits = base64ToBits(checksBase64);
+        const locksBits = base64ToBits(locksBase64);
+        
         const newId = nextId++;
-        characters.push({ id: newId, name: `インポート${i+1}`, color: colorHex });
-
-        // チェック状態復元
+        characters.push({ id: newId, name: name, color: '#' + colorHex });
+        
         if (isBlog) {
-            // ブログ版: インデックス順 → mobileキーに変換
+            // ブログ版: BLOG_INDEX_TO_MOBILE_KEY マッピングを使用
             const blogTaskCount = Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length;
             for (let idx = 0; idx < blogTaskCount; idx++) {
                 const mKey = BLOG_INDEX_TO_MOBILE_KEY[idx];
                 if (!mKey) continue;
-                const bit = bits[idx] === '1';
-                if (bit) {
-                    const item = sectionsTemplate.find(t => !t.type && t.key === mKey);
+                
+                if (checksBits[idx] === '1') {
+                    const item = taskItems.find(t => t.key === mKey);
                     if (item) saveCheck(mKey, newId, true, effectiveDate);
+                }
+                if (locksBits[idx] === '1') {
+                    setDisabled(mKey, newId, true);
                 }
             }
         } else {
-            // mobile版: MOBILE_TASK_KEYS 順
+            // Mobile版: MOBILE_TASK_KEYS 順
             for (let idx = 0; idx < MOBILE_TASK_KEYS.length; idx++) {
                 const mKey = MOBILE_TASK_KEYS[idx];
-                const bit = bits[idx] === '1';
-                if (bit) {
-                    const item = sectionsTemplate.find(t => !t.type && t.key === mKey);
-                    if (item) saveCheck(mKey, newId, true, effectiveDate);
+                const item = taskItems.find(t => t.key === mKey);
+                if (!item) continue;
+                
+                if (checksBits[idx] === '1') {
+                    saveCheck(mKey, newId, true, effectiveDate);
+                }
+                if (locksBits[idx] === '1') {
+                    setDisabled(mKey, newId, true);
                 }
             }
         }
+        
+        importedCount++;
     }
 
-    saveCharacters();
-    alert(`✓ ${charCount}人分のデータを読み込みました！\nキャラ名は「インポート1」等になっているので、ヘッダーから変更してください。`);
-    renderAll();
+    if (importedCount > 0) {
+        saveCharacters();
+        alert(`✓ ${importedCount}人分のデータを読み込みました！`);
+        renderAll();
+    } else {
+        alert('読み込めるデータがありませんでした');
+    }
 }
 
 function showImportDialog() {
@@ -1106,7 +1126,7 @@ global.DQXDailyChecker = {
             <table id="rightTable">
                 <thead><tr id="rightHeaderRow"></tr></thead>
                 <tbody id="rightBody"></tbody>
-            </table>
+            <tr>
         </div>
     </div>
     <div id="detailTableContainer"></div>
