@@ -12,11 +12,16 @@ const EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/
 const RESET_HOUR = 6;
 
 // ===== 呪文フォーマット定数 =====
-// Y = mobile-fixed版, X = ブログ版
+// Y = 新形式 (名前全文字 + カラー + チェックBase64 + ロックBase64)
+// X = 旧ブログ版 (21項目、但し同じくチェックBase64 + ロックBase64を持つ)
 const SPELL_MARKER_MOBILE = 'Y';
 const SPELL_MARKER_BLOG   = 'X';
 
-// mobile-fixed版のビット列順（タスクキー順）
+// フィールド区切り文字
+const SPELL_FIELD_SEP = '|';
+const SPELL_RECORD_SEP = ';';
+
+// mobile-fixed版のビット列順（タスクキー順）→ 23項目
 const MOBILE_TASK_KEYS = [
     'daily1','daily2','daily3','daily4',
     'weekly1','weekly2','weekly3','weekly4','weekly5','weekly6','weekly7','weekly8','weekly9','weekly10',
@@ -29,11 +34,10 @@ const MOBILE_TASK_KEYS = [
     'monthly2'
 ];
 
-// ブログ版インデックス → mobile-fixed版キー のマッピング
-// ブログ版は行インデックス0〜20
+// ブログ版インデックス → mobile-fixed版キー のマッピング（21項目）
 const BLOG_INDEX_TO_MOBILE_KEY = {
     0:  'daily1',
-    1:  'daily2',   // 咎人デイリー → ラクリマ
+    1:  'daily2',
     2:  'weekly1',
     3:  'weekly2',
     4:  'weekly3',
@@ -53,7 +57,6 @@ const BLOG_INDEX_TO_MOBILE_KEY = {
     18: 'monthly1',
     19: 'sekkai',
     20: 'monthly2'
-    // daily3, daily4 はブログ版に存在しないので対応なし
 };
 
 // ===== タスク定義 =====
@@ -439,41 +442,32 @@ function loadCheck(taskKey, charId, todayDate, taskId) {
     } catch(e) { return false; }
 }
 
-// ===== ビット列 ⇔ Base64 変換（新フォーマット用） =====
+// ===== ビット列 <-> Base64 共通関数 =====
 function bitsToBase64(bits) {
-    let paddedBits = bits;
-    while (paddedBits.length % 8 !== 0) {
-        paddedBits += '0';
-    }
     const bytes = [];
-    for (let i = 0; i < paddedBits.length; i += 8) {
-        bytes.push(parseInt(paddedBits.slice(i, i + 8), 2));
+    for (let i = 0; i < bits.length; i += 8) {
+        bytes.push(parseInt(bits.slice(i, i + 8).padEnd(8, '0'), 2));
     }
-    let b64 = btoa(String.fromCharCode(...bytes))
-        .replace(/\//g, '-')
-        .replace(/\+/g, '_')
-        .replace(/=/g, '');
-    return b64;
+    return btoa(String.fromCharCode(...bytes))
+        .replace(/\//g, '-').replace(/\+/g, '_').replace(/=/g, '');
 }
 
-function base64ToBits(b64) {
-    let b64Padded = b64.replace(/-/g, '/').replace(/_/g, '+');
-    while (b64Padded.length % 4 !== 0) b64Padded += '=';
+function base64ToBits(b64, expectedBitsLen) {
+    let padded = b64.replace(/-/g, '/').replace(/_/g, '+');
+    while (padded.length % 4 !== 0) padded += '=';
     let bits = '';
     try {
-        const decoded = atob(b64Padded);
+        const decoded = atob(padded);
         for (let j = 0; j < decoded.length; j++) {
             bits += decoded.charCodeAt(j).toString(2).padStart(8, '0');
         }
     } catch(e) {
-        console.error('Base64 decode error:', e);
-        return '';
+        return null;
     }
-    return bits;
+    return bits.slice(0, expectedBitsLen);
 }
 
-// ===== 書き出し・読み込み =====
-
+// ===== 書き出し（新形式 Y）=====
 function exportSpell() {
     if (characters.length === 0) {
         alert('キャラクターが登録されていません');
@@ -483,33 +477,34 @@ function exportSpell() {
     const targetDate = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
     const taskItems = sectionsTemplate.filter(item => !item.type);
-    
-    const charDataList = [];
-    
+
+    // 全タスクキーの順序（チェック用・ロック用とも同じ MOBILE_TASK_KEYS 順）
+    const allTaskKeys = MOBILE_TASK_KEYS;
+
+    const records = [];
     for (const ch of characters) {
-        // チェック状態のビット列生成（MOBILE_TASK_KEYS順）
-        let checksBits = '';
-        for (const mKey of MOBILE_TASK_KEYS) {
-            const item = taskItems.find(t => t.key === mKey);
-            const isChecked = item ? loadCheck(mKey, ch.id, effectiveDate, item.taskId) : false;
-            checksBits += isChecked ? '1' : '0';
+        // チェックビット列
+        let checkBits = '';
+        for (const tKey of allTaskKeys) {
+            const item = taskItems.find(t => t.key === tKey);
+            const isChecked = item ? loadCheck(tKey, ch.id, effectiveDate, item.taskId) : false;
+            checkBits += isChecked ? '1' : '0';
         }
-        
-        // ロック状態のビット列生成（同じ順）
-        let locksBits = '';
-        for (const mKey of MOBILE_TASK_KEYS) {
-            locksBits += isDisabled(mKey, ch.id) ? '1' : '0';
+        const checkB64 = bitsToBase64(checkBits);
+
+        // ロック（無効化）ビット列
+        let lockBits = '';
+        for (const tKey of allTaskKeys) {
+            lockBits += isDisabled(tKey, ch.id) ? '1' : '0';
         }
-        
-        const checksBase64 = bitsToBase64(checksBits);
-        const locksBase64 = bitsToBase64(locksBits);
-        
-        const colorHex = ch.color.replace('#', '').toLowerCase();
-        charDataList.push(`${ch.name}|${colorHex}|${checksBase64}|${locksBase64}`);
+        const lockB64 = bitsToBase64(lockBits);
+
+        // 記録: Y|名前|カラー|チェックB64|ロックB64;
+        const record = SPELL_MARKER_MOBILE + SPELL_FIELD_SEP + ch.name + SPELL_FIELD_SEP + ch.color.replace('#', '') + SPELL_FIELD_SEP + checkB64 + SPELL_FIELD_SEP + lockB64;
+        records.push(record);
     }
-    
-    const spell = SPELL_MARKER_MOBILE + charDataList.join(';');
-    
+
+    const spell = records.join(SPELL_RECORD_SEP);
     navigator.clipboard.writeText(spell).then(() => {
         alert(`✓ 呪文をコピーしました！\n${spell.length}文字`);
     }).catch(() => {
@@ -517,95 +512,162 @@ function exportSpell() {
     });
 }
 
+// ===== 読み込み（新旧両対応）=====
 function importSpell(spell) {
     spell = (spell || '').trim();
     if (!spell) { alert('呪文を入力してください'); return; }
 
     const marker = spell.charAt(0);
     if (marker !== SPELL_MARKER_MOBILE && marker !== SPELL_MARKER_BLOG) {
-        alert('不明な形式の呪文です');
+        alert('不明な形式の呪文です（Y または X で始まる必要があります）');
         return;
     }
 
-    const isBlog = (marker === SPELL_MARKER_BLOG);
     const targetDate = getJSTNow();
     const effectiveDate = getEffectiveDate(targetDate);
     const taskItems = sectionsTemplate.filter(item => !item.type);
 
-    // 新フォーマット判定（セミコロンとパイプを含むか）
-    const isNewFormat = spell.includes(';') && spell.includes('|');
-    
-    if (!isNewFormat) {
-        alert('古い形式の呪文です。新しいバージョンでは読み込めません。\n最新のツールで再エクスポートしてください。');
-        return;
-    }
+    // ----- 旧形式 (X: ブログ版21項目) -----
+    if (marker === SPELL_MARKER_BLOG) {
+        const blogTaskCount = Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length; // 21項目
+        const records = spell.split(SPELL_RECORD_SEP);
+        let addedCount = 0;
 
-    // 新フォーマット処理
-    const charBlocks = spell.slice(1).split(';');
-    let importedCount = 0;
+        for (let recIdx = 0; recIdx < records.length; recIdx++) {
+            const rec = records[recIdx].trim();
+            if (!rec) continue;
+            if (!rec.startsWith(SPELL_MARKER_BLOG + SPELL_FIELD_SEP)) {
+                alert(`レコード ${recIdx+1} の形式が不正です（X|... で始まりません）`);
+                continue;
+            }
+            const parts = rec.slice(1).split(SPELL_FIELD_SEP);
+            if (parts.length < 4) {
+                alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
+                continue;
+            }
+            const name = parts[0];
+            const colorHex = '#' + parts[1];
+            const checkB64 = parts[2];
+            const lockB64 = parts[3];
 
-    for (const block of charBlocks) {
-        if (!block.trim()) continue;
-        
-        const parts = block.split('|');
-        if (parts.length < 4) {
-            console.warn('不正なブロック形式:', block);
-            continue;
-        }
-        
-        const [name, colorHex, checksBase64, locksBase64] = parts;
-        
-        const checksBits = base64ToBits(checksBase64);
-        const locksBits = base64ToBits(locksBase64);
-        
-        const newId = nextId++;
-        characters.push({ id: newId, name: name, color: '#' + colorHex });
-        
-        if (isBlog) {
-            // ブログ版: BLOG_INDEX_TO_MOBILE_KEY マッピングを使用
-            const blogTaskCount = Object.keys(BLOG_INDEX_TO_MOBILE_KEY).length;
+            // チェックビット復元（21項目）
+            let checkBits = base64ToBits(checkB64, blogTaskCount);
+            if (checkBits === null) {
+                alert(`レコード ${recIdx+1} のチェックデータ解析に失敗`);
+                continue;
+            }
+            // ロックビット復元（21項目）
+            let lockBits = base64ToBits(lockB64, blogTaskCount);
+            if (lockBits === null) {
+                alert(`レコード ${recIdx+1} のロックデータ解析に失敗`);
+                continue;
+            }
+
+            // キャラ追加（名前は呪文からそのまま使用）
+            const newId = nextId++;
+            characters.push({ id: newId, name: name, color: colorHex });
+
+            // チェック状態を適用（ブログ版インデックス順 → mobileキー）
             for (let idx = 0; idx < blogTaskCount; idx++) {
                 const mKey = BLOG_INDEX_TO_MOBILE_KEY[idx];
                 if (!mKey) continue;
-                
-                if (checksBits[idx] === '1') {
+                if (checkBits[idx] === '1') {
                     const item = taskItems.find(t => t.key === mKey);
                     if (item) saveCheck(mKey, newId, true, effectiveDate);
                 }
-                if (locksBits[idx] === '1') {
+            }
+
+            // ロック状態を適用（ブログ版インデックス順 → mobileキー）
+            for (let idx = 0; idx < blogTaskCount; idx++) {
+                const mKey = BLOG_INDEX_TO_MOBILE_KEY[idx];
+                if (!mKey) continue;
+                if (lockBits[idx] === '1') {
                     setDisabled(mKey, newId, true);
                 }
             }
-        } else {
-            // Mobile版: MOBILE_TASK_KEYS 順
-            for (let idx = 0; idx < MOBILE_TASK_KEYS.length; idx++) {
-                const mKey = MOBILE_TASK_KEYS[idx];
-                const item = taskItems.find(t => t.key === mKey);
-                if (!item) continue;
-                
-                if (checksBits[idx] === '1') {
-                    saveCheck(mKey, newId, true, effectiveDate);
-                }
-                if (locksBits[idx] === '1') {
-                    setDisabled(mKey, newId, true);
-                }
-            }
+            addedCount++;
         }
-        
-        importedCount++;
+
+        if (addedCount === 0) {
+            alert('有効なデータがありませんでした');
+            return;
+        }
+        saveCharacters();
+        alert(`✓ ${addedCount}人分のデータを読み込みました！`);
+        renderAll();
+        return;
     }
 
-    if (importedCount > 0) {
-        saveCharacters();
-        alert(`✓ ${importedCount}人分のデータを読み込みました！`);
-        renderAll();
-    } else {
-        alert('読み込めるデータがありませんでした');
+    // ----- 新形式 (Y: 23項目) -----
+    // 書式: Y|名前|カラー|チェックB64|ロックB64; Y|名前|カラー|チェックB64|ロックB64; ...
+    const records = spell.split(SPELL_RECORD_SEP);
+    const expectedTaskCount = MOBILE_TASK_KEYS.length; // 23項目
+
+    let addedCount = 0;
+    for (let recIdx = 0; recIdx < records.length; recIdx++) {
+        const rec = records[recIdx].trim();
+        if (!rec) continue;
+        if (!rec.startsWith(SPELL_MARKER_MOBILE + SPELL_FIELD_SEP)) {
+            alert(`レコード ${recIdx+1} の形式が不正です（Y|... で始まりません）`);
+            continue;
+        }
+        const parts = rec.slice(1).split(SPELL_FIELD_SEP);
+        if (parts.length < 4) {
+            alert(`レコード ${recIdx+1} のフィールド数が不足しています`);
+            continue;
+        }
+        const name = parts[0];
+        const colorHex = '#' + parts[1];
+        const checkB64 = parts[2];
+        const lockB64 = parts[3];
+
+        // チェックビット復元
+        let checkBits = base64ToBits(checkB64, expectedTaskCount);
+        if (checkBits === null) {
+            alert(`レコード ${recIdx+1} のチェックデータ解析に失敗`);
+            continue;
+        }
+        // ロックビット復元
+        let lockBits = base64ToBits(lockB64, expectedTaskCount);
+        if (lockBits === null) {
+            alert(`レコード ${recIdx+1} のロックデータ解析に失敗`);
+            continue;
+        }
+
+        // キャラ追加（名前は呪文からそのまま使用）
+        const newId = nextId++;
+        characters.push({ id: newId, name: name, color: colorHex });
+
+        // チェック状態を適用
+        for (let idx = 0; idx < MOBILE_TASK_KEYS.length; idx++) {
+            const mKey = MOBILE_TASK_KEYS[idx];
+            const item = taskItems.find(t => t.key === mKey);
+            if (item && checkBits[idx] === '1') {
+                saveCheck(mKey, newId, true, effectiveDate);
+            }
+        }
+
+        // ロック状態を適用
+        for (let idx = 0; idx < MOBILE_TASK_KEYS.length; idx++) {
+            const mKey = MOBILE_TASK_KEYS[idx];
+            if (lockBits[idx] === '1') {
+                setDisabled(mKey, newId, true);
+            }
+        }
+        addedCount++;
     }
+
+    if (addedCount === 0) {
+        alert('有効なデータがありませんでした');
+        return;
+    }
+    saveCharacters();
+    alert(`✓ ${addedCount}人分のデータを読み込みました！`);
+    renderAll();
 }
 
 function showImportDialog() {
-    const spell = prompt('呪文を貼り付けてください\n（XまたはYで始まる文字列）');
+    const spell = prompt('呪文を貼り付けてください\n（X または Y で始まる文字列）');
     if (spell) importSpell(spell);
 }
 
@@ -1126,7 +1188,7 @@ global.DQXDailyChecker = {
             <table id="rightTable">
                 <thead><tr id="rightHeaderRow"></tr></thead>
                 <tbody id="rightBody"></tbody>
-            <tr>
+            </table>
         </div>
     </div>
     <div id="detailTableContainer"></div>
