@@ -623,6 +623,10 @@ function importSpell(spell) {
     alert(`✓ ${addedCount}人分のデータを読み込みました！`);
     renderAll();
 }
+function showImportDialog() {
+    const spell = prompt('呪文を貼り付けてください\n（X または Y で始まる文字列）');
+    if (spell) importSpell(spell);
+}
 // ===== イベント =====
 function isEventActive(event, now) {
     const start = parseToJST(event.startDateTime || event.startDate);
