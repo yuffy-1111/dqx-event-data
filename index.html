@@ -78,38 +78,6 @@
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     </style>
-</head>
-<body>
-    
-<div id="dqx-app"></div>
-
-<script src="./launcher.js"></script>
-<script src="./tools/checker.js"></script>
-<script src="./tools/expmercenary.js"></script>
-
-<script>
-window.addEventListener('load', function() {
-    DQXTools.register('Checker', {
-        name: 'コンテンツ<br>チェッカー',
-        url: './tools/checker.js',
-        renderFn: 'Checker.render'
-    });
-    
-    DQXTools.register('exp-m', {
-        name: '傭兵用多機能<br>ツールver1.5.5',
-        url: './tools/expmercenary.js',
-        renderFn: 'Expmercenary.render'
-    });
-    
-    DQXTools.register('test', {
-        name: 'ツールテスト枠',
-        url: './tools/testtool.js',
-        renderFn: 'DQtool.render',
-        password: 'yuffyrre1300'
-    });
-    
-    DQXTools.init('dqx-app');
-});
     <script>
     // ★ ここでメンテナンス期間を指定するだけ ★
     const START_DATE = new Date('2026-05-11 04:00:00');  // 開始日時
@@ -144,6 +112,38 @@ window.addEventListener('load', function() {
         });
     }
 </script>
+</head>
+<body>
+    
+<div id="dqx-app"></div>
+
+<script src="./launcher.js"></script>
+<script src="./tools/checker.js"></script>
+<script src="./tools/expmercenary.js"></script>
+
+<script>
+window.addEventListener('load', function() {
+    DQXTools.register('Checker', {
+        name: 'コンテンツ<br>チェッカー',
+        url: './tools/checker.js',
+        renderFn: 'Checker.render'
+    });
+    
+    DQXTools.register('exp-m', {
+        name: '傭兵用多機能<br>ツールver1.5.5',
+        url: './tools/expmercenary.js',
+        renderFn: 'Expmercenary.render'
+    });
+    
+    DQXTools.register('test', {
+        name: 'ツールテスト枠',
+        url: './tools/testtool.js',
+        renderFn: 'DQtool.render',
+        password: 'yuffyrre1300'
+    });
+    
+    DQXTools.init('dqx-app');
+});
 </script>
 
 </body>
