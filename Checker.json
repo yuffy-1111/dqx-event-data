@@ -29,6 +29,20 @@
       "endDateTime": "2026-05-09T23:59:00+09:00"
     },
     {
+      "id": "X_DAY-2026-05",
+      "name": "テンの日",
+      "resetType": "once",
+      "startDateTime": "2026-05-10T06:00:00+09:00",
+      "endDateTime": "2026-05-11T05:59:00+09:00"
+    },
+    {
+      "id": "inferno-2026-05-10",
+      "name": "フェスタインフェルノ",
+      "resetType": "once",
+      "startDateTime": "2026-05-10T12:00:00+09:00",
+      "endDateTime": "2026-05-13T11:59:00+09:00"
+    },
+    {
       "id": "tengoku-2026-04-25",
       "name": "邪神の宮殿 天獄",
       "resetType": "once",
