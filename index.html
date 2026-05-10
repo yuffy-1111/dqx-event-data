@@ -51,10 +51,50 @@
                 padding-bottom: 120px !important;
             }
         }
+        　　/* メンテナンスオーバーレイ */
+    .maintenance-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    
+    .maintenance-text {
+        font-size: 3rem;
+        font-weight: bold;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        background: #ff6b6b;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    
+    .maintenance-sub {
+        margin-top: 20px;
+        color: #ccc;
+        font-size: 1rem;
+    }
     </style>
 </head>
 <body>
-
+　 <div class="maintenance-overlay" id="maintenanceOverlay">
+    <div class="maintenance-text">
+        🔧 メンテナンス中 🔧
+    </div>
+    <div class="maintenance-sub">
+        しばらくお待ちください
+    </div>
+   </div>
+    
 <div id="dqx-app"></div>
 
 <script src="./launcher.js"></script>
