@@ -1265,7 +1265,7 @@ body.dark-mode #rightPanel   { background: #111827; }
 `;
 
   // ===== 外部公開 API =====
-  global.DQXDailyChecker = {
+  global.DQtool = {
     render: function (containerSelector) {
       const container = document.querySelector(containerSelector);
       if (!container) return;
