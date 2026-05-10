@@ -23,12 +23,13 @@
 
     /** お供の種類ごとの基本経験値 */
     PARTNER_EXP: {
-      none: 0,
-      mk: 48240,   // メタキング
-      hm: 12060,   // はぐメタ
-      gn: 2240,    // ゲノミー
-      sn: 1120,    // 仙人
-      zucchini: 9010, // ズッキ祖（ダースリカント専用）
+      none:     0,
+      mk:       48240, // メタキング
+      hm:       12060, // はぐメタ
+      tappitsu:  4800, // 達筆（書いたもん）
+      gn:        2240, // ゲノミー
+      sn:        1120, // 仙人
+      zucchini:  9010, // ズッキ祖（ダースリカント専用）
     },
 
     /** 通帳1Lv分の経験値 */
@@ -84,32 +85,60 @@
 
     /**
      * 討伐数・お供の種類から獲得経験値を計算する
-     * @param {number} callCount - 討伐数（1〜12）
+     * snap を渡すと DOM を一切参照せずスナップショット時点のバフで計算する（行の再計算用）
+     * @param {number} callCount   - 討伐数（1〜12）
      * @param {string} [partnerKey="none"] - お供の種類キー
+     * @param {object|null} [snap=null]    - バフスナップショット（省略時は現在のDOM値を使用）
      * @returns {{
-     *   total: number,
-     *   common: number,
-     *   angel: number,
-     *   overflow: number,
-     *   rawTotalCapped: number,
-     *   rawCommonCapped: number,
-     *   rawAngelCapped: number
+     *   total: number, common: number, angel: number, overflow: number,
+     *   rawTotalCapped: number, rawCommonCapped: number, rawAngelCapped: number
      * }}
      */
-    calcExp: function (callCount, partnerKey = "none") {
-      const selectedOption = this.$("ms").options[this.$("ms").selectedIndex];
-      const baseExp   = parseInt(selectedOption.dataset.base)  || 0;
-      const bonusExp  = parseInt(selectedOption.dataset.bonus) || 0;
-      const rate      = this.getRate();
+    calcExp: function (callCount, partnerKey = "none", snap = null) {
+      // モンスター基礎値の取得（snap.ms がある場合は option の data 属性から直接取得）
+      let baseExp, bonusExp;
+      if (snap) {
+        const msOption = document.querySelector(`#ms option[value="${snap.ms}"]`);
+        baseExp  = parseInt(msOption?.dataset.base)  || 0;
+        bonusExp = parseInt(msOption?.dataset.bonus) || 0;
+      } else {
+        const selectedOption = this.$("ms").options[this.$("ms").selectedIndex];
+        baseExp  = parseInt(selectedOption.dataset.base)  || 0;
+        bonusExp = parseInt(selectedOption.dataset.bonus) || 0;
+      }
+
+      // バフ値の取得（snap があればそちらを優先）
+      const fd       = snap ? snap.fd       : this.$("fd").checked;
+      const tr       = snap ? snap.tr       : this.$("tr").checked;
+      const ag       = snap ? snap.ag       : this.$("ag").checked;
+      const em       = snap ? snap.em       : this.$("em").checked;
+      const elixir   = snap ? snap.elixir   : (document.querySelector('input[name="e_exp"]:checked')?.value || "none");
+      const pbVal    = snap ? snap.pb       : this.$("pb").value;
+
+      // レート計算（DOM を使わない純粋計算）
+      let rate = 1.0;
+      if (fd) rate += 0.3;
+      if (elixir === "genki")    rate += 1;
+      if (elixir === "bakushin") rate += 2;
+      if (tr) rate += 1;
+      if (em) rate += 1;
+
+      // applyLimit 内の料理フラグも snap 対応（一時的に fd を渡す）
+      const applyLimitWithFd = (val, limit) => {
+        const rounded   = Math.round(val);
+        const isNearInt = Math.abs(val - rounded) < 0.1;
+        const ceiled    = fd && isNearInt ? rounded + 1 : Math.ceil(val);
+        return Math.min(ceiled, limit);
+      };
+
       const partnerExpVal = this.PARTNER_EXP[partnerKey] || 0;
-      const hasAngel  = this.$("ag").checked;
-      const passbookLimit = parseInt(this.$("pb").value) || 0;
+      const hasAngel      = ag;
+      const passbookLimit = parseInt(pbVal) || 0;
       const hasPassbook   = passbookLimit > 0;
 
-      const elixirType   = document.querySelector('input[name="e_exp"]:checked')?.value;
-      const isHighLimit  = elixirType === "bakushin" || this.$("tr").checked;
-      const expLimit     = isHighLimit ? 1499999 : 599999;
-      const angelLimit   = 599999;
+      const isHighLimit = elixir === "bakushin" || tr;
+      const expLimit    = isHighLimit ? 1499999 : 599999;
+      const angelLimit  = 599999;
 
       const rawCommonPerKill = baseExp * rate + bonusExp;
       const rawAngelPerKill  = hasAngel ? baseExp * 2 : 0;
@@ -124,20 +153,20 @@
         const commonCapped = Math.min(rawTotalCommon, expLimit);
         const angelCapped  = Math.min(rawTotalAngel,  angelLimit);
         const totalOverflow = (rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped);
-        const common = this.applyLimit(commonCapped, expLimit);
+        const common = applyLimitWithFd(commonCapped, expLimit);
         const angel  = Math.min(Math.ceil(angelCapped), angelLimit);
         return {
-          total:          common + angel,
+          total:           common + angel,
           common,
           angel,
-          overflow:       Math.ceil(totalOverflow),
-          rawTotalCapped: commonCapped + angelCapped,
+          overflow:        Math.ceil(totalOverflow),
+          rawTotalCapped:  commonCapped + angelCapped,
           rawCommonCapped: commonCapped,
           rawAngelCapped:  angelCapped,
         };
       } else {
         const cappedTotal = Math.min(rawTotal, expLimit);
-        const total = this.applyLimit(cappedTotal, expLimit);
+        const total = applyLimitWithFd(cappedTotal, expLimit);
         return {
           total,
           common:          total,
@@ -416,46 +445,17 @@
         const recalcRowExp = () => {
           const snap = JSON.parse(row.dataset.snapshot);
 
-          // 現在の状態を退避してスナップショット時点のバフを適用
-          const saved = {
-            fd:    self.$("fd").checked,
-            tr:    self.$("tr").checked,
-            ag:    self.$("ag").checked,
-            em:    self.$("em").checked,
-            elixir: document.querySelector('input[name="e_exp"]:checked')?.value,
-            pb:    self.$("pb").value,
-            ms:    self.$("ms").value,
-          };
-          self.$("fd").checked = snap.fd;
-          self.$("tr").checked = snap.tr;
-          self.$("ag").checked = snap.ag;
-          self.$("em").checked = snap.em;
-          const snapElixirRadio = document.querySelector(`input[name="e_exp"][value="${snap.elixir}"]`);
-          if (snapElixirRadio) snapElixirRadio.checked = true;
-          self.$("pb").value = snap.pb;
-          self.$("ms").value = snap.ms;
-
-          // 選択中の討伐数・お供で再計算
+          // スナップショットを直接 calcExp に渡すことで DOM を操作せず再計算
           const newCallCount  = parseInt(row.querySelector(".cs").value);
           const newPartnerKey = row.querySelector(".rs").value;
           row.dataset.count   = newCallCount;
-          const expResult     = self.calcExp(newCallCount, newPartnerKey);
+          const expResult     = self.calcExp(newCallCount, newPartnerKey, snap);
           const newExpVal     = row.dataset.type === "angel"   ? expResult.angel
                               : row.dataset.type === "pass"    ? expResult.common
                               : expResult.total;
           row.dataset.val          = newExpVal;
           row.dataset.rawValCapped = newExpVal;
           row.querySelector(".ev").textContent = newExpVal.toLocaleString();
-
-          // バフ状態を元に戻す
-          self.$("fd").checked = saved.fd;
-          self.$("tr").checked = saved.tr;
-          self.$("ag").checked = saved.ag;
-          self.$("em").checked = saved.em;
-          const savedElixirRadio = document.querySelector(`input[name="e_exp"][value="${saved.elixir}"]`);
-          if (savedElixirRadio) savedElixirRadio.checked = true;
-          self.$("pb").value = saved.pb;
-          self.$("ms").value = saved.ms;
 
           self.updateTotal();
         };
@@ -576,6 +576,16 @@
   body.dark-mode #ms,body.dark-mode #pb,body.dark-mode #cn,body.dark-mode .rs,body.dark-mode .cs{border-color:#7ab8ff!important}
   body.dark-mode [style*="background: #f0f7ff"],body.dark-mode [style*="background:#f0f7ff"],body.dark-mode #ms{background-color:#2a2f45!important}
   body.dark-mode #ms,body.dark-mode #currentExpDisplay,body.dark-mode #pob div{color:#5a9eff!important}
+  /* ダークモード定義漏れ補完 */
+  body.dark-mode #overflowDisplay{color:#888!important}
+  body.dark-mode #timerDisplay{color:#e8e8f0!important}
+  body.dark-mode #estimatedReward{background:#2a2f45!important;color:#e8e8f0!important}
+  body.dark-mode #rowHistory{border-top-color:#2a2a3a!important;background:#1a1a2a}
+  body.dark-mode .sync-small{color:#aaa!important}
+  body.dark-mode .penalty-ref{color:#ff8888!important}
+  /* インラインの #ddd 区切り線・#666 テキストを上書き */
+  body.dark-mode [style*="border-top:1px solid #ddd"]{border-top-color:#2a2a3a!important}
+  body.dark-mode [style*="color:#666"]{color:#aaa!important}
 </style>
 
 <div class="c">
