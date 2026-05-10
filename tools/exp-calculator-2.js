@@ -1,671 +1,958 @@
-// ========== 傭兵用多機能ツールver1.5.5 ==========
-(function(global) {
-    // 既存のツールと変数が被らないように、独自の名前空間でラップ
-    const ExpCalc = {
-        timer: null,
-        startTime: 0,
-        pauseSec: 0,
-        lastLap: 0,
-        jobOffset: 0,
-        passbookOffset: 0,
-        count: 0,
-        optCount: 1,
-        calcLockedUntil: 0,
+// ========== 傭兵用多機能ツール ver1.5.5 ==========
 
-        // ユーティリティ
-        L: ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
-        RX: { none: 0, mk: 48240, hm: 12060, gn: 2240, sn: 1120, zucchini: 9010 },
-        LV: 1589326,
+(function (global) {
+  // 既存のツールと変数が被らないように独自の名前空間でラップ
 
-        // DOM要素取得
-        $: function(id) { return document.getElementById(id); },
+  const ExpCalc = {
+    // ----- タイマー状態 -----
+    timer: null,         // setInterval の戻り値
+    startTime: 0,        // タイマー開始時刻（ms）
+    pauseSec: 0,         // 一時停止時の経過秒数
+    lastLapSec: 0,       // 最後のLAPを記録した秒数
+    jobOffsetSec: 0,     // 転職ボタン押下による加算オフセット（秒）
+    passbookOffset: 0,   // 通帳引き出し済み累計経験値
 
-        // 時間フォーマット
-        formatTime: function(sec) {
-            if (isNaN(sec) || sec < 0 || sec === Infinity) return "00:00.00";
-            let m = Math.floor(sec / 60);
-            let s = (sec % 60).toFixed(2).padStart(5, "0");
-            return `${m.toString().padStart(2, "0")}:${s}`;
-        },
+    // ----- カウンタ -----
+    killCount: 0,        // 加算ボタンを押した合計回数
+    optCallCount: 1,     // 最適な呼び数（A〜L の数値）
+    calcLockedUntil: 0,  // 加算ボタンのロック解除時刻（ms）
 
-        // レート計算
-        getRate: function() {
-            let r = 1.0;
-            if (this.$("fd").checked) r += 0.3;
-            const e = document.querySelector('input[name="e_exp"]:checked')?.value || "none";
-            if (e === "genki") r += 1;
-            if (e === "bakushin") r += 2;
-            if (this.$("tr").checked) r += 1;
-            if (this.$("em").checked) r += 1;
-            return r;
-        },
+    // ----- 定数 -----
+    /** 討伐数の表示ラベル（インデックス 1〜12 = A〜L） */
+    CALL_LABELS: ["", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"],
 
-        // 上限適用
-        applyLimit: function(val, lim) {
-            let rnd = Math.round(val);
-            let isInt = Math.abs(val - rnd) < 0.1;
-            let rounded = this.$("fd").checked && isInt ? rnd + 1 : Math.ceil(val);
-            return Math.min(rounded, lim);
-        },
+    /** お供の種類ごとの基本経験値 */
+    PARTNER_EXP: {
+      none: 0,
+      mk: 48240,   // メタキング
+      hm: 12060,   // はぐメタ
+      gn: 2240,    // ゲノミー
+      sn: 1120,    // 仙人
+      zucchini: 9010, // ズッキ祖（ダースリカント専用）
+    },
 
-        // 経験値計算
-        exp: function(c, rk = "none") {
-            const sel = this.$("ms").options[this.$("ms").selectedIndex];
-            const b = parseInt(sel.dataset.base) || 0;
-            const bon = parseInt(sel.dataset.bonus) || 0;
-            const rate = this.getRate();
-            const rkVal = this.RX[rk] || 0;
-            const isAngel = this.$("ag").checked;
-            const pv = parseInt(this.$("pb").value) || 0;
-            const hasPassbook = pv > 0;
-            const isHighLimit = (document.querySelector('input[name="e_exp"]:checked')?.value === "bakushin") || this.$("tr").checked;
-            const lim = isHighLimit ? 1499999 : 599999;
-            const angelLim = 599999;
+    /** 通帳1Lv分の経験値 */
+    EXP_PER_LV: 1589326,
 
-            let rawCommonPer = b * rate + bon;
-            let rawAngelPer = isAngel ? b * 2 : 0;
-            let rawRkCommon = rkVal * rate;
-            let rawRkAngel = isAngel ? rkVal * 2 : 0;
-            let rawTotalCommon = rawCommonPer * c + rawRkCommon;
-            let rawTotalAngel = rawAngelPer * c + rawRkAngel;
-            let rawTotal = rawTotalCommon + rawTotalAngel;
+    // ----- ユーティリティ -----
 
-            if (hasPassbook) {
-                let commonPart = Math.min(rawTotalCommon, lim);
-                let angelPart = Math.min(rawTotalAngel, angelLim);
-                let totalOverflow = (rawTotalCommon - commonPart) + (rawTotalAngel - angelPart);
-                let common = this.applyLimit(commonPart, lim);
-                let angel = Math.min(Math.ceil(angelPart), angelLim);
-                return { total: common + angel, common: common, angel: angel, overflow: Math.ceil(totalOverflow), rawTotalCapped: commonPart + angelPart, rawCommonCapped: commonPart, rawAngelCapped: angelPart };
-            } else {
-                let finalTotal = Math.min(rawTotal, lim);
-                let total = this.applyLimit(finalTotal, lim);
-                return { total: total, common: total, angel: 0, overflow: Math.ceil(rawTotal - finalTotal), rawTotalCapped: finalTotal, rawCommonCapped: finalTotal, rawAngelCapped: 0 };
-            }
-        },
+    /** ID でDOM要素を取得する */
+    $: function (id) {
+      return document.getElementById(id);
+    },
 
-        // 最適呼び数計算
-        calcOpt: function() {
-            let en = document.querySelector('input[name="e_exp"]:checked')?.value || "none";
-            let hl = en === "bakushin" || this.$("tr").checked;
-            let lim = hl ? 1499999 : 599999;
-            this.optCount = 1;
-            for (let i = 1; i <= 12; i++) {
-                if (this.exp(i).common < lim) this.optCount = i;
-                else break;
-            }
-        },
+    /**
+     * 秒数を "MM:SS.ss" 形式の文字列に変換する
+     * @param {number} sec
+     * @returns {string}
+     */
+    formatTime: function (sec) {
+      if (isNaN(sec) || sec < 0 || sec === Infinity) return "00:00.00";
+      const minutes = Math.floor(sec / 60);
+      const seconds = (sec % 60).toFixed(2).padStart(5, "0");
+      return `${minutes.toString().padStart(2, "0")}:${seconds}`;
+    },
 
-        // UI更新
-        updateUI: function(auto = false) {
-            let pl = parseInt(this.$("pb").value) || 0;
-            const passArea = this.$("passbookArea");
-            if (pl > 0) {
-                passArea.classList.remove("hidden");
-                this.$("plt").textContent = pl.toLocaleString();
-            } else {
-                passArea.classList.add("hidden");
-            }
-            this.calcOpt();
-            if (auto) this.$("cn").value = this.optCount;
-            let c = parseInt(this.$("cn").value);
-            let e = this.exp(c);
-            this.$("ce").textContent = e.total.toLocaleString();
-            this.$("of").style.visibility = e.overflow > 0 ? "visible" : "hidden";
-            this.$("of").textContent = `溢れ:${e.overflow.toLocaleString()}`;
-        },
+    /**
+     * 現在の設定から経験値レートを計算して返す
+     * @returns {number}
+     */
+    getRate: function () {
+      let rate = 1.0;
+      if (this.$("fd").checked) rate += 0.3;
+      const elixirType = document.querySelector('input[name="e_exp"]:checked')?.value || "none";
+      if (elixirType === "genki")   rate += 1;
+      if (elixirType === "bakushin") rate += 2;
+      if (this.$("tr").checked) rate += 1;
+      if (this.$("em").checked) rate += 1;
+      return rate;
+    },
 
-        // 合計表示更新
-        updateTotal: function() {
-            let sumVal = 0, accVal = 0, lps = [], penaltyMin = 0, penaltyMax = 0;
-            document.querySelectorAll(".exp-row").forEach(el => {
-                let val = parseInt(el.dataset.val) || 0;
-                if (!isNaN(val)) {
-                    sumVal += val;
-                    if (el.dataset.type === "pass") accVal += val;
-                }
-                if (el.dataset.lap && el.dataset.lap !== '-1' && el.dataset.type !== "lap_only" && el.dataset.type !== "job" && el.dataset.main === "true") {
-                    lps.push(parseFloat(el.dataset.lap));
-                }
-                if (el.dataset.desp === "true" && el.dataset.lap && el.dataset.lap !== '-1' && el.dataset.type !== "lap_only" && el.dataset.type !== "job") {
-                    let expVal = parseFloat(el.dataset.rawValCapped) || parseInt(el.dataset.val) || 0;
-                    let lapSec = parseFloat(el.dataset.lap);
-                    if (lapSec > 6.45) {
-                        penaltyMin += expVal * (6.45 / lapSec);
-                        penaltyMax += expVal * (2.58 / lapSec);
-                    }
-                }
-            });
-            this.$("hs").textContent = Math.ceil(sumVal).toLocaleString();
-            let pl = parseInt(this.$("pb").value) || 0;
-            if (pl > 0) {
-                let disp = Math.max(0, accVal - this.passbookOffset);
-                this.$("te").textContent = Math.ceil(disp).toLocaleString();
-            }
-            let hasPenalty = document.querySelectorAll('.exp-row[data-desp="true"]').length > 0;
-            const penaltyRef = this.$("penaltyRef");
-            if (hasPenalty && penaltyMin > 0) {
-                penaltyRef.style.display = "block";
-                penaltyRef.innerHTML = `デスペナ想定:<br>${Math.ceil(penaltyMax).toLocaleString()}～${Math.ceil(penaltyMin).toLocaleString()}`;
-            } else {
-                penaltyRef.style.display = "none";
-            }
-            if (lps.length > 0) {
-                let avg = lps.reduce((a, b) => a + b, 0) / lps.length;
-                this.$("at").textContent = this.formatTime(avg);
-                if (avg > 0.01) {
-                    let b30 = Math.floor(1800 / avg);
-                    let ep = sumVal / (lps.length || 1);
-                    this.$("fc").textContent = `${Math.round(ep * b30 / 1e4)}万～${Math.round(ep * (b30 + 1) / 1e4)}万`;
-                } else {
-                    this.$("fc").textContent = "--";
-                }
-            } else {
-                this.$("at").textContent = "--:--.--";
-                this.$("fc").textContent = "--";
-            }
-        },
+    /**
+     * 経験値を上限に合わせて丸め・クランプする
+     * 料理補正がある整数値は切り上げ+1、それ以外は切り上げ
+     * @param {number} val   生の経験値
+     * @param {number} limit 上限値
+     * @returns {number}
+     */
+    applyLimit: function (val, limit) {
+      const rounded = Math.round(val);
+      const isNearInt = Math.abs(val - rounded) < 0.1;
+      const ceiled = this.$("fd").checked && isNearInt ? rounded + 1 : Math.ceil(val);
+      return Math.min(ceiled, limit);
+    },
 
-        // お供オプションHTML
-        getPartnerOptions: function(mid) {
-            const base = `<option value="none">お供無</option><option value="hm">はぐメタ</option><option value="mk">メタキン</option><option value="gn">ゲノミー</option><option value="sn">仙人</option>`;
-            return mid === "dearthlicant" ? base + `<option value="zucchini">ズッキ祖</option>` : base;
-        },
+    /**
+     * 討伐数・お供の種類から獲得経験値を計算する
+     * @param {number} callCount - 討伐数（1〜12）
+     * @param {string} [partnerKey="none"] - お供の種類キー
+     * @returns {{
+     *   total: number,
+     *   common: number,
+     *   angel: number,
+     *   overflow: number,
+     *   rawTotalCapped: number,
+     *   rawCommonCapped: number,
+     *   rawAngelCapped: number
+     * }}
+     */
+    calcExp: function (callCount, partnerKey = "none") {
+      const selectedOption = this.$("ms").options[this.$("ms").selectedIndex];
+      const baseExp   = parseInt(selectedOption.dataset.base)  || 0;
+      const bonusExp  = parseInt(selectedOption.dataset.bonus) || 0;
+      const rate      = this.getRate();
+      const partnerExpVal = this.PARTNER_EXP[partnerKey] || 0;
+      const hasAngel  = this.$("ag").checked;
+      const passbookLimit = parseInt(this.$("pb").value) || 0;
+      const hasPassbook   = passbookLimit > 0;
 
-        // 行追加
-        addRow: function(bid, c, xp, type, ts, lap, main = false, rawValCapped = null, mid = null, desp = false) {
-            let d = document.createElement("div");
-            d.className = "exp-row h";
-            d.dataset.val = xp;
-            d.dataset.rawValCapped = rawValCapped !== null ? rawValCapped : xp;
-            const snapshot = {
-                fd: this.$("fd").checked,
-                tr: this.$("tr").checked,
-                ag: this.$("ag").checked,
-                em: this.$("em").checked,
-                e: document.querySelector('input[name="e_exp"]:checked')?.value || "none",
-                pb: this.$("pb").value,
-                ms: mid || this.$("ms").value
-            };
-            d.dataset.snapshot = JSON.stringify(snapshot);
-            d.dataset.type = type;
-            d.dataset.sec = ts;
-            d.dataset.lap = lap != null ? lap : -1;
-            d.dataset.main = main;
-            d.dataset.count = c;
-            d.dataset.bid = bid;
-            d.dataset.monsterId = mid || this.$("ms").value;
-            d.dataset.desp = desp ? "true" : "false";
+      const elixirType   = document.querySelector('input[name="e_exp"]:checked')?.value;
+      const isHighLimit  = elixirType === "bakushin" || this.$("tr").checked;
+      const expLimit     = isHighLimit ? 1499999 : 599999;
+      const angelLimit   = 599999;
 
-            let tm = { pass: "[通]", angel: "[エ]", overflow: "[溢]", normal: "", lap_only: "[LAP]", job: "転職" };
-            let cm = { pass: "#f88", angel: "#5a9eff", overflow: "#aaa", lap_only: "#2cc9ff", job: "#00bcd4" };
-            let nl = bid === "LAP" ? `<span style="color:#2cc9ff;font-weight:bold;width:26px;font-size:10px">LAP</span>` : `<span style="color:#999;width:26px;font-size:10px">#${bid}</span>`;
-            let tdEl = `<div style="font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums;width:65px"><div style="font-size:11px;font-weight:bold">${this.formatTime(ts)}</div>${lap != null && lap >= 0 ? `<div style="color:#2cc9ff;font-size:10px">L ${this.formatTime(lap)}</div>` : ""}</div>`;
-            let ea = bid === "LAP" ? `<div style="width:95px;color:#aaa;font-size:10px">LAP MARK</div>` : type === "job" ? `<div style="width:95px"><span style="color:${cm[type]};font-size:10px">${tm[type]}</span></div>` : `<div style="width:95px"><strong class="ev" style="font-size:13px;min-width:62px;text-align:right;font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums">${xp.toLocaleString()}</strong><span style="color:${cm[type]};font-size:10px">${tm[type]}</span></div>`;
-            let despHtml = `<label style="margin:0 2px;display:inline-flex;align-items:center"><input type="checkbox" class="desp-tgl" ${desp ? "checked" : ""}><span style="font-size:9px">💀</span></label>`;
-            let ca = bid !== "LAP" && type !== "job" ? `<div style="display:flex;gap:3px;flex:1"><select class="rs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">${this.getPartnerOptions(d.dataset.monsterId)}</select><select class="cs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">${this.L.map((l, i) => i > 0 ? `<option value="${i}" ${i == c ? "selected" : ""}>${l}</option>` : "").join("")}</select></div>` : `<div style="flex:1;color:#aaa;text-align:center;font-size:10px">----------</div>`;
+      const rawCommonPerKill = baseExp * rate + bonusExp;
+      const rawAngelPerKill  = hasAngel ? baseExp * 2 : 0;
+      const rawPartnerCommon = partnerExpVal * rate;
+      const rawPartnerAngel  = hasAngel ? partnerExpVal * 2 : 0;
 
-            d.innerHTML = nl + tdEl + ea + despHtml + `<button class="del" style="border:none;background:none;color:#aaa;cursor:pointer;font-size:19px;padding:0 4px">×</button>` + ca;
+      const rawTotalCommon = rawCommonPerKill * callCount + rawPartnerCommon;
+      const rawTotalAngel  = rawAngelPerKill  * callCount + rawPartnerAngel;
+      const rawTotal       = rawTotalCommon + rawTotalAngel;
 
-            if (bid !== "LAP" && type !== "job") {
-                let self = this;
-                let upd = () => {
-                    let snap = JSON.parse(d.dataset.snapshot);
-                    let origFd = self.$("fd").checked;
-                    let origTr = self.$("tr").checked;
-                    let origAg = self.$("ag").checked;
-                    let origEm = self.$("em").checked;
-                    let origE = document.querySelector('input[name="e_exp"]:checked')?.value;
-                    let origPb = self.$("pb").value;
-                    let origMs = self.$("ms").value;
+      if (hasPassbook) {
+        const commonCapped = Math.min(rawTotalCommon, expLimit);
+        const angelCapped  = Math.min(rawTotalAngel,  angelLimit);
+        const totalOverflow = (rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped);
+        const common = this.applyLimit(commonCapped, expLimit);
+        const angel  = Math.min(Math.ceil(angelCapped), angelLimit);
+        return {
+          total:          common + angel,
+          common,
+          angel,
+          overflow:       Math.ceil(totalOverflow),
+          rawTotalCapped: commonCapped + angelCapped,
+          rawCommonCapped: commonCapped,
+          rawAngelCapped:  angelCapped,
+        };
+      } else {
+        const cappedTotal = Math.min(rawTotal, expLimit);
+        const total = this.applyLimit(cappedTotal, expLimit);
+        return {
+          total,
+          common:          total,
+          angel:           0,
+          overflow:        Math.ceil(rawTotal - cappedTotal),
+          rawTotalCapped:  cappedTotal,
+          rawCommonCapped: cappedTotal,
+          rawAngelCapped:  0,
+        };
+      }
+    },
 
-                    self.$("fd").checked = snap.fd;
-                    self.$("tr").checked = snap.tr;
-                    self.$("ag").checked = snap.ag;
-                    self.$("em").checked = snap.em;
-                    let eRadio = document.querySelector(`input[name="e_exp"][value="${snap.e}"]`);
-                    if (eRadio) eRadio.checked = true;
-                    self.$("pb").value = snap.pb;
-                    self.$("ms").value = snap.ms;
+    /**
+     * 上限に達しない最大討伐数（最適呼び数）を求めて optCallCount に保存する
+     */
+    calcOptimalCallCount: function () {
+      const elixirType = document.querySelector('input[name="e_exp"]:checked')?.value || "none";
+      const isHighLimit = elixirType === "bakushin" || this.$("tr").checked;
+      const expLimit = isHighLimit ? 1499999 : 599999;
+      this.optCallCount = 1;
+      for (let i = 1; i <= 12; i++) {
+        if (this.calcExp(i).common < expLimit) this.optCallCount = i;
+        else break;
+      }
+    },
 
-                    let nc = parseInt(d.querySelector(".cs").value);
-                    let nr = d.querySelector(".rs").value;
-                    d.dataset.count = nc;
-                    let res = self.exp(nc, nr);
-                    let nv = d.dataset.type === "angel" ? res.angel : d.dataset.type === "pass" ? res.common : res.total;
-                    d.dataset.val = nv;
-                    d.dataset.rawValCapped = nv;
-                    d.querySelector(".ev").textContent = nv.toLocaleString();
+    /**
+     * 経験値表示・溢れ表示・最適呼び数を更新する
+     * @param {boolean} [autoSetCount=false] 討伐数セレクトを自動更新するか
+     */
+    updateUI: function (autoSetCount = false) {
+      const passbookLimit = parseInt(this.$("pb").value) || 0;
+      const passbookArea  = this.$("passbookArea");
 
-                    self.$("fd").checked = origFd;
-                    self.$("tr").checked = origTr;
-                    self.$("ag").checked = origAg;
-                    self.$("em").checked = origEm;
-                    let origERadio = document.querySelector(`input[name="e_exp"][value="${origE}"]`);
-                    if (origERadio) origERadio.checked = true;
-                    self.$("pb").value = origPb;
-                    self.$("ms").value = origMs;
+      if (passbookLimit > 0) {
+        passbookArea.classList.remove("hidden");
+        this.$("passbookLimitText").textContent = passbookLimit.toLocaleString();
+      } else {
+        passbookArea.classList.add("hidden");
+      }
 
-                    self.updateTotal();
-                };
-                d.querySelector(".cs").onchange = upd;
-                d.querySelector(".rs").onchange = upd;
-                let despChk = d.querySelector(".desp-tgl");
-                if (despChk) {
-                    despChk.onchange = () => {
-                        d.dataset.desp = despChk.checked ? "true" : "false";
-                        this.updateTotal();
-                    };
-                }
-            }
+      this.calcOptimalCallCount();
+      if (autoSetCount) this.$("cn").value = this.optCallCount;
 
-            d.querySelector(".del").onclick = () => {
-                d.remove();
-                this.updateTotal();
-            };
-            this.$("rh").prepend(d);
+      const callCount = parseInt(this.$("cn").value);
+      const expResult = this.calcExp(callCount);
+
+      this.$("currentExpDisplay").textContent = expResult.total.toLocaleString();
+      this.$("overflowDisplay").style.visibility = expResult.overflow > 0 ? "visible" : "hidden";
+      this.$("overflowDisplay").textContent = `溢れ:${expResult.overflow.toLocaleString()}`;
+    },
+
+    /**
+     * 履歴行の合計・平均タイム・想定玉給・通帳残量を更新する
+     */
+    updateTotal: function () {
+      let totalExp    = 0;
+      let passbookExp = 0;
+      let lapTimes    = [];
+      let penaltyMin  = 0;
+      let penaltyMax  = 0;
+
+      document.querySelectorAll(".exp-row").forEach(el => {
+        const expVal = parseInt(el.dataset.val) || 0;
+        if (!isNaN(expVal)) {
+          totalExp += expVal;
+          if (el.dataset.type === "pass") passbookExp += expVal;
+        }
+
+        // 平均タイム用のLAP収集（メイン行かつ有効なLAP時間のみ）
+        if (
+          el.dataset.lap &&
+          el.dataset.lap !== "-1" &&
+          el.dataset.type !== "lap_only" &&
+          el.dataset.type !== "job" &&
+          el.dataset.main === "true"
+        ) {
+          lapTimes.push(parseFloat(el.dataset.lap));
+        }
+
+        // デスペナ想定の計算
+        if (
+          el.dataset.desp === "true" &&
+          el.dataset.lap &&
+          el.dataset.lap !== "-1" &&
+          el.dataset.type !== "lap_only" &&
+          el.dataset.type !== "job"
+        ) {
+          const rawCapped = parseFloat(el.dataset.rawValCapped) || parseInt(el.dataset.val) || 0;
+          const lapSec    = parseFloat(el.dataset.lap);
+          if (lapSec > 6.45) {
+            penaltyMin += rawCapped * (6.45 / lapSec);
+            penaltyMax += rawCapped * (2.58 / lapSec);
+          }
+        }
+      });
+
+      this.$("totalExpDisplay").textContent = Math.ceil(totalExp).toLocaleString();
+
+      // 通帳残量の更新
+      const passbookLimit = parseInt(this.$("pb").value) || 0;
+      if (passbookLimit > 0) {
+        const remaining = Math.max(0, passbookExp - this.passbookOffset);
+        this.$("passbookExpDisplay").textContent = Math.ceil(remaining).toLocaleString();
+      }
+
+      // デスペナ表示の更新
+      const hasPenalty = document.querySelectorAll('.exp-row[data-desp="true"]').length > 0;
+      const penaltyRef = this.$("penaltyRef");
+      if (hasPenalty && penaltyMin > 0) {
+        penaltyRef.style.display = "block";
+        penaltyRef.innerHTML =
+          `デスペナ想定:<br>${Math.ceil(penaltyMax).toLocaleString()}～${Math.ceil(penaltyMin).toLocaleString()}`;
+      } else {
+        penaltyRef.style.display = "none";
+      }
+
+      // 平均タイム・想定玉給の更新
+      if (lapTimes.length > 0) {
+        const avgSec = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+        this.$("avgTimeDisplay").textContent = this.formatTime(avgSec);
+        if (avgSec > 0.01) {
+          const battles30min = Math.floor(1800 / avgSec);
+          const expPerBattle = totalExp / (lapTimes.length || 1);
+          this.$("estimatedGoldDisplay").textContent =
+            `${Math.round(expPerBattle * battles30min / 1e4)}万～` +
+            `${Math.round(expPerBattle * (battles30min + 1) / 1e4)}万`;
+        } else {
+          this.$("estimatedGoldDisplay").textContent = "--";
+        }
+      } else {
+        this.$("avgTimeDisplay").textContent = "--:--.--";
+        this.$("estimatedGoldDisplay").textContent = "--";
+      }
+    },
+
+    /**
+     * お供セレクトの <option> HTML を生成する
+     * @param {string} monsterId - モンスターの value 値
+     * @returns {string}
+     */
+    getPartnerOptions: function (monsterId) {
+      const baseOptions =
+        `<option value="none">お供無</option>` +
+        `<option value="hm">はぐメタ</option>` +
+        `<option value="mk">メタキン</option>` +
+        `<option value="gn">ゲノミー</option>` +
+        `<option value="sn">仙人</option>`;
+      return monsterId === "dearthlicant"
+        ? baseOptions + `<option value="zucchini">ズッキ祖</option>`
+        : baseOptions;
+    },
+
+    /**
+     * 履歴に1行追加する
+     * @param {number|string} rowId        - 行番号（"LAP"/"JOB" の場合もある）
+     * @param {number}        callCount    - 討伐数
+     * @param {number}        expVal       - 表示する経験値
+     * @param {string}        rowType      - "normal"|"pass"|"angel"|"overflow"|"lap_only"|"job"
+     * @param {number}        elapsedSec   - 経過時間（秒）
+     * @param {number|null}   lapSec       - LAP秒数（null = LAP不明）
+     * @param {boolean}       [isMain=false]   - 平均タイム計算に使うメイン行か
+     * @param {number|null}   [rawCapped=null] - 上限適用前の生経験値（通帳計算用）
+     * @param {string|null}   [monsterId=null] - モンスターID（null = 現在の選択値）
+     * @param {boolean}       [hasDeathPenalty=false] - デスペナ中か
+     */
+    addRow: function (
+      rowId, callCount, expVal, rowType, elapsedSec, lapSec,
+      isMain = false, rawCapped = null, monsterId = null, hasDeathPenalty = false
+    ) {
+      const row = document.createElement("div");
+      row.className = "exp-row h";
+      row.dataset.val         = expVal;
+      row.dataset.rawValCapped = rawCapped !== null ? rawCapped : expVal;
+
+      // 行が追加された時点のバフ設定スナップショット（再計算用）
+      const snapshot = {
+        fd: this.$("fd").checked,
+        tr: this.$("tr").checked,
+        ag: this.$("ag").checked,
+        em: this.$("em").checked,
+        elixir: document.querySelector('input[name="e_exp"]:checked')?.value || "none",
+        pb: this.$("pb").value,
+        ms: monsterId || this.$("ms").value,
+      };
+      row.dataset.snapshot    = JSON.stringify(snapshot);
+      row.dataset.type        = rowType;
+      row.dataset.sec         = elapsedSec;
+      row.dataset.lap         = lapSec != null ? lapSec : -1;
+      row.dataset.main        = isMain;
+      row.dataset.count       = callCount;
+      row.dataset.bid         = rowId;
+      row.dataset.monsterId   = monsterId || this.$("ms").value;
+      row.dataset.desp        = hasDeathPenalty ? "true" : "false";
+
+      // 行タイプごとの表示テキスト・カラー
+      const TYPE_LABEL = {
+        pass:     "[通]",
+        angel:    "[エ]",
+        overflow: "[溢]",
+        normal:   "",
+        lap_only: "[LAP]",
+        job:      "転職",
+      };
+      const TYPE_COLOR = {
+        pass:     "#f88",
+        angel:    "#5a9eff",
+        overflow: "#aaa",
+        lap_only: "#2cc9ff",
+        job:      "#00bcd4",
+      };
+
+      // 行番号表示
+      const rowIdHtml = rowId === "LAP"
+        ? `<span style="color:#2cc9ff;font-weight:bold;width:26px;font-size:10px">LAP</span>`
+        : `<span style="color:#999;width:26px;font-size:10px">#${rowId}</span>`;
+
+      // タイム表示
+      const timeHtml =
+        `<div style="font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums;width:65px">` +
+        `<div style="font-size:11px;font-weight:bold">${this.formatTime(elapsedSec)}</div>` +
+        (lapSec != null && lapSec >= 0
+          ? `<div style="color:#2cc9ff;font-size:10px">L ${this.formatTime(lapSec)}</div>`
+          : "") +
+        `</div>`;
+
+      // 経験値表示
+      let expHtml;
+      if (rowId === "LAP") {
+        expHtml = `<div style="width:95px;color:#aaa;font-size:10px">LAP MARK</div>`;
+      } else if (rowType === "job") {
+        expHtml =
+          `<div style="width:95px">` +
+          `<span style="color:${TYPE_COLOR[rowType]};font-size:10px">${TYPE_LABEL[rowType]}</span>` +
+          `</div>`;
+      } else {
+        expHtml =
+          `<div style="width:95px">` +
+          `<strong class="ev" style="font-size:13px;min-width:62px;text-align:right;` +
+          `font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums">` +
+          `${expVal.toLocaleString()}</strong>` +
+          `<span style="color:${TYPE_COLOR[rowType]};font-size:10px">${TYPE_LABEL[rowType]}</span>` +
+          `</div>`;
+      }
+
+      // デスペナチェックボックス
+      const deathPenaltyHtml =
+        `<label style="margin:0 2px;display:inline-flex;align-items:center">` +
+        `<input type="checkbox" class="desp-tgl" ${hasDeathPenalty ? "checked" : ""}>` +
+        `<span style="font-size:9px">💀</span></label>`;
+
+      // お供・呼び数セレクト（LAP/転職行は非表示）
+      const controlsHtml = (rowId !== "LAP" && rowType !== "job")
+        ? `<div style="display:flex;gap:3px;flex:1">` +
+          `<select class="rs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">` +
+          `${this.getPartnerOptions(row.dataset.monsterId)}</select>` +
+          `<select class="cs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">` +
+          `${this.CALL_LABELS.map((label, i) =>
+            i > 0 ? `<option value="${i}" ${i == callCount ? "selected" : ""}>${label}</option>` : ""
+          ).join("")}` +
+          `</select></div>`
+        : `<div style="flex:1;color:#aaa;text-align:center;font-size:10px">----------</div>`;
+
+      row.innerHTML =
+        rowIdHtml +
+        timeHtml +
+        expHtml +
+        deathPenaltyHtml +
+        `<button class="del" style="border:none;background:none;color:#aaa;cursor:pointer;font-size:19px;padding:0 4px">×</button>` +
+        controlsHtml;
+
+      // 経験値再計算イベント（LAP/転職行は不要）
+      if (rowId !== "LAP" && rowType !== "job") {
+        const self = this;
+
+        const recalcRowExp = () => {
+          const snap = JSON.parse(row.dataset.snapshot);
+
+          // 現在の状態を退避してスナップショット時点のバフを適用
+          const saved = {
+            fd:    self.$("fd").checked,
+            tr:    self.$("tr").checked,
+            ag:    self.$("ag").checked,
+            em:    self.$("em").checked,
+            elixir: document.querySelector('input[name="e_exp"]:checked')?.value,
+            pb:    self.$("pb").value,
+            ms:    self.$("ms").value,
+          };
+          self.$("fd").checked = snap.fd;
+          self.$("tr").checked = snap.tr;
+          self.$("ag").checked = snap.ag;
+          self.$("em").checked = snap.em;
+          const snapElixirRadio = document.querySelector(`input[name="e_exp"][value="${snap.elixir}"]`);
+          if (snapElixirRadio) snapElixirRadio.checked = true;
+          self.$("pb").value = snap.pb;
+          self.$("ms").value = snap.ms;
+
+          // 選択中の討伐数・お供で再計算
+          const newCallCount  = parseInt(row.querySelector(".cs").value);
+          const newPartnerKey = row.querySelector(".rs").value;
+          row.dataset.count   = newCallCount;
+          const expResult     = self.calcExp(newCallCount, newPartnerKey);
+          const newExpVal     = row.dataset.type === "angel"   ? expResult.angel
+                              : row.dataset.type === "pass"    ? expResult.common
+                              : expResult.total;
+          row.dataset.val          = newExpVal;
+          row.dataset.rawValCapped = newExpVal;
+          row.querySelector(".ev").textContent = newExpVal.toLocaleString();
+
+          // バフ状態を元に戻す
+          self.$("fd").checked = saved.fd;
+          self.$("tr").checked = saved.tr;
+          self.$("ag").checked = saved.ag;
+          self.$("em").checked = saved.em;
+          const savedElixirRadio = document.querySelector(`input[name="e_exp"][value="${saved.elixir}"]`);
+          if (savedElixirRadio) savedElixirRadio.checked = true;
+          self.$("pb").value = saved.pb;
+          self.$("ms").value = saved.ms;
+
+          self.updateTotal();
+        };
+
+        row.querySelector(".cs").onchange = recalcRowExp;
+        row.querySelector(".rs").onchange = recalcRowExp;
+
+        const despCheckbox = row.querySelector(".desp-tgl");
+        if (despCheckbox) {
+          despCheckbox.onchange = () => {
+            row.dataset.desp = despCheckbox.checked ? "true" : "false";
             this.updateTotal();
-        },
+          };
+        }
+      }
 
-        // 時間表示更新
-        updateTimerDisplay: function(now) {
-            this.$("td").textContent = this.formatTime(now);
-            this.$("ld").textContent = this.formatTime(now - this.lastLap);
-            let sync = Math.max(0, now - this.jobOffset);
-            this.$("syncDisplay").innerHTML = sync > 0 ? `オプション持続: ${this.formatTime(sync)}` : "&nbsp;";
-        },
+      row.querySelector(".del").onclick = () => {
+        row.remove();
+        this.updateTotal();
+      };
 
-        render: function(containerSelector) {
-            const container = document.querySelector(containerSelector);
-            if (!container) return;
+      this.$("rowHistory").prepend(row);
+      this.updateTotal();
+    },
 
-            const self = this;
+    /**
+     * タイマーの時間表示・LAPタイム表示・オプション持続時間を更新する
+     * @param {number} elapsedSec - 現在の経過秒数
+     */
+    updateTimerDisplay: function (elapsedSec) {
+      this.$("timerDisplay").textContent    = this.formatTime(elapsedSec);
+      this.$("lapTimeDisplay").textContent  = this.formatTime(elapsedSec - this.lastLapSec);
+      const syncSec = Math.max(0, elapsedSec - this.jobOffsetSec);
+      this.$("syncDisplay").innerHTML = syncSec > 0
+        ? `オプション持続: ${this.formatTime(syncSec)}`
+        : "&nbsp;";
+    },
 
-            // HTMLを設定
-            container.innerHTML = `
+    /**
+     * 指定コンテナにHTMLを注入してイベントリスナーを設定する
+     * @param {string} containerSelector - マウント先のCSSセレクタ
+     */
+    render: function (containerSelector) {
+      const container = document.querySelector(containerSelector);
+      if (!container) return;
+      const self = this;
+
+      container.innerHTML = `
 <style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;padding:0}
-.c{max-width:none;width:100%;margin:0;padding:0;background:transparent;border:none;border-radius:0;font-family:sans-serif;color:#333;line-height:1.25}
-select,input,button{font-family:inherit}
-.h{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px}
-.b1{background:#0066cc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)}
-.b2{background:#e74c3c;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
-.b3{background:#3498db;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
-.b4{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;font-weight:bold;cursor:pointer}
-.b5{background:#00bcd4;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
-.bg{background:#f9f9f9;border:1px solid #eee;border-radius:6px}
-.rs,.cs{font-size:12px!important;padding:2px 4px!important;min-width:52px}
-.rs{flex:1.45!important}
-.cs{flex:0.9!important}
-#td,#ld,#at,#te,#plt{font-family:'Verdana',system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
-#te,#plt{font-size:15px!important;font-weight:bold}
-#timer-row{background:#f8f9fc!important;border-radius:6px;padding:6px 8px!important;margin-bottom:6px!important}
-label{color:#000!important}
-.ac{color:#f39c12}
-.fc{color:#27ae60}
-.ln{color:#2cc9ff}
-.sync-small{font-size:9px;color:#888;text-align:right;height:14px;line-height:14px}
-.lap-normal{font-size:18px;font-weight:bold;color:#2cc9ff;line-height:24px}
-.timer-right{text-align:right}
-.penalty-ref{font-size:11px;color:#ff6666;margin-top:4px;white-space:pre-line}
-.passbook-area{background:#f0f7ff;border-radius:6px;padding:4px 8px;display:flex;flex-direction:column;gap:3px}
-.passbook-area.hidden{display:none}
-.passbook-info{font-size:13px;text-align:center;font-weight:bold}
-.passbook-buttons{display:flex;gap:6px;justify-content:center}
-.passbook-buttons button{background:#06c;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex:1}
-#ms{text-align:center}
-#ms, #pb, #cn, .rs, .cs,
-[style*="border: 1px solid #b3d9ff"],
-[style*="border:1px solid #b3d9ff"],
-[style*="border: 1px solid #06c"],
-[style*="border:1px solid #06c"] { border-color: #7ab8ff !important; }
-#ts { background: #008888 !important; color: #fff !important; border: 1px solid #00aaaa !important; border-radius: 4px; cursor: pointer; font-weight: bold; padding: 2px; }
-.copy-btn { background: #008888 !important; color: #fff !important; border: none !important; border-radius: 6px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; padding: 4px 8px; font-size: 12px; }
-.oc-btn { background: #fff1f0 !important; border: 1px solid #ffa39e !important; color: #cf1322 !important; border-radius: 4px; padding: 6px 12px; font-size: 12px; cursor: pointer; margin-right: 8px; }
-body.dark-mode{background:#0a0a0f}
-body.dark-mode .c{background:#1a1a2a;color:#e8e8f0}
-body.dark-mode select,body.dark-mode input,body.dark-mode button{background:#2a2a3a!important;color:#e8e8f0!important}
-body.dark-mode .h{border-bottom-color:#2a2a3a!important}
-body.dark-mode .bg{background:#0f0f17!important;border-color:#2a2a3a!important}
-body.dark-mode #ce{color:#5a9eff!important}
-body.dark-mode .ac{color:#ffaa66!important}
-body.dark-mode .fc{color:#66ffaa!important}
-body.dark-mode .pt{color:#ff8888!important}
-body.dark-mode #hs{color:#fff!important}
-body.dark-mode #timer-row{background:#2a2f45!important}
-body.dark-mode label{color:#e8e8f0!important}
-body.dark-mode .b1{background:#1a6eaa!important;color:#fff!important;border:1px solid #3399cc!important}
-body.dark-mode .b2{background:#aa3333!important;color:#fff!important;border:1px solid #cc5555!important}
-body.dark-mode .b3{background:#1a77aa!important;color:#fff!important;border:1px solid #3399cc!important}
-body.dark-mode .b4{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
-body.dark-mode .b5{background:#1a8899!important;color:#fff!important;border:1px solid #33aabb!important}
-body.dark-mode .passbook-area{background:#1e2a44!important}
-body.dark-mode .passbook-buttons button{background:#1a73e8!important}
-body.dark-mode #ts{background:#006666!important;border:1px solid #008888!important}
-body.dark-mode .copy-btn{background:#006666!important}
-body.dark-mode .oc-btn{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
-body.dark-mode #ms, body.dark-mode #pb, body.dark-mode #cn,
-body.dark-mode .rs, body.dark-mode .cs { border-color: #7ab8ff !important; }
-body.dark-mode [style*="background: #f0f7ff"],
-body.dark-mode [style*="background:#f0f7ff"],
-body.dark-mode #ms { background-color: #2a2f45 !important; }
-body.dark-mode #ms,
-body.dark-mode #ce,
-body.dark-mode #pob div { color: #5a9eff !important; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;padding:0}
+  .c{max-width:none;width:100%;margin:0;padding:0;background:transparent;border:none;border-radius:0;font-family:sans-serif;color:#333;line-height:1.25}
+  select,input,button{font-family:inherit}
+  .h{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px}
+  /* ボタンスタイル */
+  .btn-primary{background:#0066cc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)}
+  .btn-danger{background:#e74c3c;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
+  .btn-info{background:#3498db;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
+  .btn-warning{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;font-weight:bold;cursor:pointer}
+  .btn-teal{background:#00bcd4;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
+  /* パネル背景 */
+  .panel-bg{background:#f9f9f9;border:1px solid #eee;border-radius:6px}
+  /* 行内セレクト */
+  .rs,.cs{font-size:12px!important;padding:2px 4px!important;min-width:52px}
+  .rs{flex:1.45!important}
+  .cs{flex:0.9!important}
+  /* タブ数字フォント */
+  #timerDisplay,#lapTimeDisplay,#avgTimeDisplay,#passbookExpDisplay,#passbookLimitText{font-family:'Verdana',system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
+  #passbookExpDisplay,#passbookLimitText{font-size:15px!important;font-weight:bold}
+  #timer-row{background:#f8f9fc!important;border-radius:6px;padding:6px 8px!important;margin-bottom:6px!important}
+  label{color:#000!important}
+  /* カラークラス */
+  .text-orange{color:#f39c12}
+  .text-green{color:#27ae60}
+  .text-cyan{color:#2cc9ff}
+  .text-red{color:#e74c3c}
+  .sync-small{font-size:9px;color:#888;text-align:right;height:14px;line-height:14px}
+  .lap-display{font-size:18px;font-weight:bold;color:#2cc9ff;line-height:24px}
+  .timer-right{text-align:right}
+  .penalty-ref{font-size:11px;color:#ff6666;margin-top:4px;white-space:pre-line}
+  .passbook-area{background:#f0f7ff;border-radius:6px;padding:4px 8px;display:flex;flex-direction:column;gap:3px}
+  .passbook-area.hidden{display:none}
+  .passbook-info{font-size:13px;text-align:center;font-weight:bold}
+  .passbook-buttons{display:flex;gap:6px;justify-content:center}
+  .passbook-buttons button{background:#06c;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex:1}
+  #ms{text-align:center}
+  /* 入力フィールドのボーダー色統一 */
+  #ms,#pb,#cn,.rs,.cs{border-color:#7ab8ff!important}
+  /* タイマー停止ボタン */
+  #btnTimerStop{background:#008888!important;color:#fff!important;border:1px solid #00aaaa!important;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px}
+  /* 履歴コピーボタン */
+  .btn-copy{background:#008888!important;color:#fff!important;border:none!important;border-radius:6px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:4px 8px;font-size:12px}
+  /* OCリセットボタン */
+  .btn-oc{background:#fff1f0!important;border:1px solid #ffa39e!important;color:#cf1322!important;border-radius:4px;padding:6px 12px;font-size:12px;cursor:pointer;margin-right:8px}
+  /* ダークモード */
+  body.dark-mode{background:#0a0a0f}
+  body.dark-mode .c{background:#1a1a2a;color:#e8e8f0}
+  body.dark-mode select,body.dark-mode input,body.dark-mode button{background:#2a2a3a!important;color:#e8e8f0!important}
+  body.dark-mode .h{border-bottom-color:#2a2a3a!important}
+  body.dark-mode .panel-bg{background:#0f0f17!important;border-color:#2a2a3a!important}
+  body.dark-mode #currentExpDisplay{color:#5a9eff!important}
+  body.dark-mode .text-orange{color:#ffaa66!important}
+  body.dark-mode .text-green{color:#66ffaa!important}
+  body.dark-mode .text-red{color:#ff8888!important}
+  body.dark-mode #totalExpDisplay{color:#fff!important}
+  body.dark-mode #timer-row{background:#2a2f45!important}
+  body.dark-mode label{color:#e8e8f0!important}
+  body.dark-mode .btn-primary{background:#1a6eaa!important;color:#fff!important;border:1px solid #3399cc!important}
+  body.dark-mode .btn-danger{background:#aa3333!important;color:#fff!important;border:1px solid #cc5555!important}
+  body.dark-mode .btn-info{background:#1a77aa!important;color:#fff!important;border:1px solid #3399cc!important}
+  body.dark-mode .btn-warning{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
+  body.dark-mode .btn-teal{background:#1a8899!important;color:#fff!important;border:1px solid #33aabb!important}
+  body.dark-mode .passbook-area{background:#1e2a44!important}
+  body.dark-mode .passbook-buttons button{background:#1a73e8!important}
+  body.dark-mode #btnTimerStop{background:#006666!important;border:1px solid #008888!important}
+  body.dark-mode .btn-copy{background:#006666!important}
+  body.dark-mode .btn-oc{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
+  body.dark-mode #ms,body.dark-mode #pb,body.dark-mode #cn,body.dark-mode .rs,body.dark-mode .cs{border-color:#7ab8ff!important}
+  body.dark-mode [style*="background: #f0f7ff"],body.dark-mode [style*="background:#f0f7ff"],body.dark-mode #ms{background-color:#2a2f45!important}
+  body.dark-mode #ms,body.dark-mode #currentExpDisplay,body.dark-mode #pob div{color:#5a9eff!important}
 </style>
+
 <div class="c">
-<div style="display: flex; gap: 6px; margin-bottom: 8px;">
-<select id="ms" style="flex: 2; padding: 6px; font-size: 15px; border: 1px solid #7ab8ff; border-radius: 4px; font-weight: bold; background: #f0f7ff;">
-<option value="returner" data-base="13118" data-bonus="0">リターナーモア</option>
-<option selected="selected" value="durahan" data-base="22802" data-bonus="4561">デュラハーン</option>
-<option value="hell" data-base="23990" data-bonus="4798">ヘルガーディアン</option>
-<option value="scare" data-base="22904" data-bonus="4581">スケアフレイル</option>
-<option value="dearthlicant" data-base="15191" data-bonus="0">ダースリカント</option>
-<option value="golem_strong" data-base="20350" data-bonus="0">ゴーレム強</option>
-</select>
-<select id="pb" style="flex: 1; padding: 6px; font-size: 12px; border: 1px solid #7ab8ff; border-radius: 4px;">
-<option selected="selected" value="0">通帳なし</option>
-<option value="5000000">通帳1(500万)</option>
-<option value="10000000">通帳2(1000万)</option>
-</select>
-</div>
-<div style="display: flex; gap: 4px; margin-bottom: 8px;">
-<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f0f7ff; border: 1px solid #7ab8ff; border-radius: 6px; padding: 4px;"><span id="ce" style="font-size: 22px; font-weight: bold; color: #06c;">0</span> <span id="of" style="font-size: 9px; color: #999; margin-top: 2px; visibility: hidden;">溢れ:0</span></div>
-<div id="pob" style="width: 46px; cursor: pointer; background: #f0f7ff; border: 1px solid #7ab8ff; border-radius: 6px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-<div style="font-size: 8px; color: #06c;">最適</div>
-<div style="font-size: 13px; font-weight: bold; color: #06c;">+1</div>
-</div>
-<div style="width: 60px;">
-<div style="font-size: 7px; color: #666; text-align: center;">討伐数</div>
-<select id="cn" style="width: 100%; padding: 2px; font-size: 18px; font-weight: bold; border: 1px solid #7ab8ff; border-radius: 4px; text-align: center;">
-<option value="1">A</option><option value="2">B</option><option value="3">C</option><option value="4">D</option><option value="5">E</option>
-<option value="6">F</option><option value="7">G</option><option value="8">H</option><option value="9">I</option><option value="10">J</option>
-<option selected="selected" value="11">K</option><option value="12">L</option>
-</select>
-</div>
-</div>
-<div id="timer-row" style="padding: 6px 8px; margin-bottom: 8px; display: flex; gap: 6px;">
-<div style="flex: 1; font-size: 12px; display: flex; flex-direction: column; align-items: flex-end; padding-right: 50px; justify-content: center;">
-<div style="margin-bottom: 3px; display: flex; gap: 8px;"><label><input name="e_exp" type="radio" value="none" />無</label> <label><input checked="checked" name="e_exp" type="radio" value="genki" />元気</label> <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label></div>
-<div style="border-top: 1px solid #ddd; padding-top: 3px; width: 100%; display: flex; justify-content: flex-end; gap: 14px; font-size: 11px; align-items: center;"><button id="buffReset" class="oc-btn">OC</button>
-<div style="display: flex; flex-direction: column; gap: 2px;"><label><input id="fd" checked="checked" type="checkbox" />料理</label> <label><input id="tr" type="checkbox" />修練</label></div>
-<div style="display: flex; flex-direction: column; gap: 2px;"><label><input id="ag" type="checkbox" />エンゼル</label> <label><input id="em" type="checkbox" />皇帝</label></div>
-</div>
-</div>
-<button id="ts" style="width: 72px; font-size: 12px; border-radius: 4px; cursor: pointer; font-weight: bold; padding: 2px;">タイマー<br />開始</button>
-</div>
-<div style="display: flex; gap: 6px; margin-bottom: 8px;">
-<div class="bg" style="flex: 6; padding: 6px 8px; border-radius: 6px; text-align: center;">
-<div><span style="font-size: 12px; font-weight: bold;">総獲得</span><span id="hs" style="font-size: 22px; font-weight: bold; font-family: 'Verdana',system-ui,sans-serif; font-variant-numeric: tabular-nums;">0</span></div>
-<div id="penaltyRef" class="penalty-ref" style="display: none;"></div>
-<div style="font-size: 11px; border-top: 1px solid #ddd; margin-top: 4px; padding-top: 4px;">
-<div>平均:<strong id="at" class="ac" style="font-family: monospace; font-size: 22px; font-weight: bold;">--:--.--</strong></div>
-</div>
-</div>
-<button id="calc" class="b1" style="flex: 4; font-size: 21px; border-radius: 6px;">加算</button>
-</div>
-<div class="bg" style="padding: 6px; border-radius: 6px; margin-bottom: 8px;">
-<div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: flex-start; justify-content: space-between;">
-<div id="td" style="font-size: 28px; font-weight: bold;">00:00.00</div>
-<div class="timer-right">
-<div id="syncDisplay" class="sync-small"></div>
-<div><span style="font-size: 10px;">LAP:</span><span id="ld" class="lap-normal">00:00.00</span></div>
-</div>
-</div>
-<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 3px; margin-top: 4px;"><button id="ra" class="b4" style="padding: 7px; font-size: 11px;">AC</button> <button id="tsp" class="b2" style="padding: 7px; font-size: 11px;">停止</button> <button id="job" class="b5" style="padding: 7px; font-size: 11px;">転職</button> <button id="lp" class="b3" style="padding: 7px; font-size: 11px;">LAP</button></div>
-</div>
-<div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;"><button id="copyHistory" class="copy-btn" style="flex: 3; white-space: nowrap;">履歴コピー</button>
-<div id="estimatedReward" style="flex: 7; background: #f0f7ff; border-radius: 6px; padding: 3px 6px; text-align: center; font-size: 12px; display: flex; align-items: center; justify-content: center;">想定玉給:<span id="fc" class="fc" style="font-weight: bold; font-size: 13px; margin-left: 4px;">--</span></div>
-</div>
-<div id="passbookArea" class="passbook-area hidden" style="margin-bottom: 6px;">
-<div class="passbook-info" style="font-size: 11px;">通帳:<strong id="te" class="pt" style="font-size: 13px;">0</strong>/<span id="plt" style="font-size: 13px;">0</span></div>
-<div class="passbook-buttons"><button id="pr">リセット</button> <button id="ml">1Lv分引出</button></div>
-</div>
-<div id="rh" style="margin-top: 4px; max-height: 250px; overflow-y: auto; border-top: 1px solid #eee;"></div>
+
+  <!-- モンスター選択・通帳選択 -->
+  <div style="display:flex;gap:6px;margin-bottom:8px">
+    <select id="ms" style="flex:2;padding:6px;font-size:15px;border:1px solid #7ab8ff;border-radius:4px;font-weight:bold;background:#f0f7ff">
+      <option value="returner"      data-base="13118" data-bonus="0">リターナーモア</option>
+      <option value="durahan"       data-base="22802" data-bonus="4561" selected>デュラハーン</option>
+      <option value="hell"          data-base="23990" data-bonus="4798">ヘルガーディアン</option>
+      <option value="scare"         data-base="22904" data-bonus="4581">スケアフレイル</option>
+      <option value="dearthlicant"  data-base="15191" data-bonus="0">ダースリカント</option>
+      <option value="golem_strong"  data-base="20350" data-bonus="0">ゴーレム強</option>
+    </select>
+    <select id="pb" style="flex:1;padding:6px;font-size:12px;border:1px solid #7ab8ff;border-radius:4px">
+      <option value="0" selected>通帳なし</option>
+      <option value="5000000">通帳1(500万)</option>
+      <option value="10000000">通帳2(1000万)</option>
+    </select>
+  </div>
+
+  <!-- 経験値表示・最適ボタン・討伐数選択 -->
+  <div style="display:flex;gap:4px;margin-bottom:8px">
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px;padding:4px">
+      <span id="currentExpDisplay" style="font-size:22px;font-weight:bold;color:#06c">0</span>
+      <span id="overflowDisplay" style="font-size:9px;color:#999;margin-top:2px;visibility:hidden">溢れ:0</span>
+    </div>
+    <div id="pob" style="width:46px;cursor:pointer;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div style="font-size:8px;color:#06c">最適</div>
+      <div style="font-size:13px;font-weight:bold;color:#06c">+1</div>
+    </div>
+    <div style="width:60px">
+      <div style="font-size:7px;color:#666;text-align:center">討伐数</div>
+      <select id="cn" style="width:100%;padding:2px;font-size:18px;font-weight:bold;border:1px solid #7ab8ff;border-radius:4px;text-align:center">
+        <option value="1">A</option><option value="2">B</option><option value="3">C</option>
+        <option value="4">D</option><option value="5">E</option><option value="6">F</option>
+        <option value="7">G</option><option value="8">H</option><option value="9">I</option>
+        <option value="10">J</option><option value="11" selected>K</option><option value="12">L</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- バフ設定・タイマー開始ボタン -->
+  <div id="timer-row" style="padding:6px 8px;margin-bottom:8px;display:flex;gap:6px">
+    <div style="flex:1;font-size:12px;display:flex;flex-direction:column;align-items:flex-end;padding-right:50px;justify-content:center">
+      <!-- エリクサー選択 -->
+      <div style="margin-bottom:3px;display:flex;gap:8px">
+        <label><input name="e_exp" type="radio" value="none" />無</label>
+        <label><input name="e_exp" type="radio" value="genki" checked />元気</label>
+        <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label>
+      </div>
+      <!-- バフチェックボックス・OCリセット -->
+      <div style="border-top:1px solid #ddd;padding-top:3px;width:100%;display:flex;justify-content:flex-end;gap:14px;font-size:11px;align-items:center">
+        <button id="btnBuffReset" class="btn-oc">OC</button>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <label><input id="fd" type="checkbox" checked />料理</label>
+          <label><input id="tr" type="checkbox" />修練</label>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <label><input id="ag" type="checkbox" />エンゼル</label>
+          <label><input id="em" type="checkbox" />皇帝</label>
+        </div>
+      </div>
+    </div>
+    <button id="btnTimerStop" style="width:72px;font-size:12px;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px">タイマー<br />開始</button>
+  </div>
+
+  <!-- 総獲得・加算ボタン -->
+  <div style="display:flex;gap:6px;margin-bottom:8px">
+    <div class="panel-bg" style="flex:6;padding:6px 8px;border-radius:6px;text-align:center">
+      <div>
+        <span style="font-size:12px;font-weight:bold">総獲得</span>
+        <span id="totalExpDisplay" style="font-size:22px;font-weight:bold;font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums">0</span>
+      </div>
+      <div id="penaltyRef" class="penalty-ref" style="display:none"></div>
+      <div style="font-size:11px;border-top:1px solid #ddd;margin-top:4px;padding-top:4px">
+        <div>平均:<strong id="avgTimeDisplay" class="text-orange" style="font-family:monospace;font-size:22px;font-weight:bold">--:--.--</strong></div>
+      </div>
+    </div>
+    <button id="btnCalc" class="btn-primary" style="flex:4;font-size:21px;border-radius:6px">加算</button>
+  </div>
+
+  <!-- タイマー表示エリア -->
+  <div class="panel-bg" style="padding:6px;border-radius:6px;margin-bottom:8px">
+    <div style="display:flex;gap:6px;margin-bottom:4px;align-items:flex-start;justify-content:space-between">
+      <div id="timerDisplay" style="font-size:28px;font-weight:bold">00:00.00</div>
+      <div class="timer-right">
+        <div id="syncDisplay" class="sync-small">&nbsp;</div>
+        <div><span style="font-size:10px">LAP:</span><span id="lapTimeDisplay" class="lap-display">00:00.00</span></div>
+      </div>
+    </div>
+    <!-- タイマー操作ボタン -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px;margin-top:4px">
+      <button id="btnAllClear"     class="btn-warning" style="padding:7px;font-size:11px">AC</button>
+      <button id="btnTimerPause"   class="btn-danger"  style="padding:7px;font-size:11px">停止</button>
+      <button id="btnJob"          class="btn-teal"    style="padding:7px;font-size:11px">転職</button>
+      <button id="btnLap"          class="btn-info"    style="padding:7px;font-size:11px">LAP</button>
+    </div>
+  </div>
+
+  <!-- 履歴コピー・想定玉給 -->
+  <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+    <button id="btnCopyHistory" class="btn-copy" style="flex:3;white-space:nowrap">履歴コピー</button>
+    <div id="estimatedReward" style="flex:7;background:#f0f7ff;border-radius:6px;padding:3px 6px;text-align:center;font-size:12px;display:flex;align-items:center;justify-content:center">
+      想定玉給:<span id="estimatedGoldDisplay" class="text-green" style="font-weight:bold;font-size:13px;margin-left:4px">--</span>
+    </div>
+  </div>
+
+  <!-- 通帳エリア -->
+  <div id="passbookArea" class="passbook-area hidden" style="margin-bottom:6px">
+    <div class="passbook-info" style="font-size:11px">
+      通帳:<strong id="passbookExpDisplay" class="text-red" style="font-size:13px">0</strong>/<span id="passbookLimitText" style="font-size:13px">0</span>
+    </div>
+    <div class="passbook-buttons">
+      <button id="btnPassbookReset">リセット</button>
+      <button id="btnPassbookWithdraw">1Lv分引出</button>
+    </div>
+  </div>
+
+  <!-- 履歴リスト -->
+  <div id="rowHistory" style="margin-top:4px;max-height:250px;overflow-y:auto;border-top:1px solid #eee"></div>
 </div>
 `;
 
-            // イベントハンドラを設定（thisをバインド）
-            const init = () => {
-                // バインディング
-                self.$ = (id) => document.getElementById(id);
-                self.formatTime = ExpCalc.formatTime.bind(self);
-                self.getRate = ExpCalc.getRate.bind(self);
-                self.applyLimit = ExpCalc.applyLimit.bind(self);
-                self.exp = ExpCalc.exp.bind(self);
-                self.calcOpt = ExpCalc.calcOpt.bind(self);
-                self.updateUI = ExpCalc.updateUI.bind(self);
-                self.updateTotal = ExpCalc.updateTotal.bind(self);
-                self.getPartnerOptions = ExpCalc.getPartnerOptions.bind(self);
-                self.addRow = ExpCalc.addRow.bind(self);
-                self.updateTimerDisplay = ExpCalc.updateTimerDisplay.bind(self);
+      // ----- イベントリスナー設定 -----
 
-                // 初期変数
-                self.timer = null;
-                self.startTime = 0;
-                self.pauseSec = 0;
-                self.lastLap = 0;
-                self.jobOffset = 0;
-                self.passbookOffset = 0;
-                self.count = 0;
-                self.optCount = 1;
-                self.calcLockedUntil = 0;
+      // 加算ボタン
+      self.$("btnCalc").onclick = () => {
+        if (Date.now() < self.calcLockedUntil) return;
+        self.killCount++;
+        const elapsedSec = self.timer
+          ? (Date.now() - self.startTime) / 1000
+          : self.pauseSec;
+        const lapSec     = self.timer ? (elapsedSec - self.lastLapSec) : null;
+        const callCount  = parseInt(self.$("cn").value);
+        const expResult  = self.calcExp(callCount);
+        const passbookLimit = parseInt(self.$("pb").value) || 0;
 
-                // イベントリスナー
-                document.getElementById('calc').onclick = () => {
-                    if (Date.now() < self.calcLockedUntil) return;
-                    self.count++;
-                    let now = self.timer ? (Date.now() - self.startTime) / 1000 : self.pauseSec;
-                    let lap = self.timer ? (now - self.lastLap) : null;
-                    let c = parseInt(self.$("cn").value);
-                    let res = self.exp(c);
-                    let pl = parseInt(self.$("pb").value) || 0;
+        if (passbookLimit > 0) {
+          // エンゼル経験値行
+          if (expResult.angel > 0) {
+            self.addRow(self.killCount, callCount, expResult.angel, "angel", elapsedSec, lapSec, false, expResult.angel, null, false);
+          }
+          // 通帳残量を確認して通常/溢れを振り分け
+          let accumulatedRaw = 0;
+          document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
+            const raw = parseFloat(el.dataset.rawValCapped);
+            if (!isNaN(raw)) accumulatedRaw += raw;
+          });
+          const remainingRaw = Math.max(0, passbookLimit - (accumulatedRaw - self.passbookOffset));
+          const remaining    = Math.ceil(remainingRaw);
 
-                    if (pl > 0) {
-                        if (res.angel > 0) self.addRow(self.count, c, res.angel, "angel", now, lap, false, res.angel, null, false);
-                        let accRaw = 0;
-                        document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
-                            let r = parseFloat(el.dataset.rawValCapped);
-                            if (!isNaN(r)) accRaw += r;
-                        });
-                        let remRaw = Math.max(0, pl - (accRaw - self.passbookOffset));
-                        let rem = Math.ceil(remRaw);
-                        if (rem >= res.common) self.addRow(self.count, c, res.common, "pass", now, lap, true, res.common, null, false);
-                        else if (rem > 0) {
-                            self.addRow(self.count, c, res.common - rem, "overflow", now, lap, false, res.common - rem, null, false);
-                            self.addRow(self.count, c, rem, "pass", now, lap, true, rem, null, false);
-                        } else self.addRow(self.count, c, res.common, "overflow", now, lap, true, res.common, null, false);
-                    } else {
-                        self.addRow(self.count, c, res.total, "normal", now, lap, true, res.total, null, false);
-                    }
-                    self.lastLap = now;
-                    self.updateTimerDisplay(now);
-
-                    self.calcLockedUntil = Date.now() + 3000;
-                    let btn = self.$("calc");
-                    btn.disabled = true;
-                    btn.style.opacity = "0.5";
-                    let cb = 3;
-                    let iv = setInterval(() => {
-                        cb--;
-                        if (cb > 0) {
-                            btn.textContent = `(${cb})`;
-                        } else {
-                            clearInterval(iv);
-                            btn.disabled = false;
-                            btn.style.opacity = "1";
-                            btn.textContent = "加算";
-                            self.updateUI();
-                        }
-                    }, 1000);
-                };
-
-                document.getElementById('ra').onclick = () => {
-                    if (self.timer) { clearInterval(self.timer); self.timer = null; }
-                    self.pauseSec = 0;
-                    self.startTime = 0;
-                    self.lastLap = 0;
-                    self.count = 0;
-                    self.jobOffset = 0;
-                    self.passbookOffset = 0;
-                    document.getElementById('rh').innerHTML = "";
-                    self.updateTimerDisplay(0);
-                    self.updateTotal();
-                    self.updateUI();
-                };
-
-                document.getElementById('ml').onclick = () => {
-                    let accRaw = 0;
-                    document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
-                        let r = parseFloat(el.dataset.rawValCapped);
-                        if (!isNaN(r)) accRaw += r;
-                    });
-                    let bal = accRaw - self.passbookOffset;
-                    if (bal <= 0) return;
-                    let wd = Math.min(self.LV, bal);
-                    self.passbookOffset += wd;
-                    self.updateTotal();
-                };
-
-                document.getElementById('lp').onclick = () => {
-                    let now = self.timer ? (Date.now() - self.startTime) / 1000 : self.pauseSec;
-                    self.addRow("LAP", 0, 0, "lap_only", now, now - self.lastLap);
-                    self.lastLap = now;
-                    self.updateTimerDisplay(now);
-                };
-
-                document.getElementById('job').onclick = () => {
-                    if (!self.timer && self.pauseSec === 0) return;
-                    let now = self.timer ? (Date.now() - self.startTime) / 1000 : self.pauseSec;
-                    self.jobOffset += 20;
-                    if (self.jobOffset > now) self.jobOffset = now;
-                    self.updateTimerDisplay(now);
-                    if (self.timer) {
-                        self.addRow("JOB", 0, 0, "job", now, now - self.lastLap);
-                        self.lastLap = now;
-                    }
-                };
-
-                document.getElementById('pob').onclick = () => {
-                    self.$("cn").value = Math.min(12, self.optCount + 1);
-                    self.updateUI(false);
-                };
-
-                document.getElementById('ts').onclick = () => {
-                    if (!self.timer) {
-                        self.startTime = Date.now() - self.pauseSec * 1000;
-                        self.timer = setInterval(() => {
-                            let now = (Date.now() - self.startTime) / 1000;
-                            self.updateTimerDisplay(now);
-                        }, 30);
-                        self.calcLockedUntil = Math.max(self.calcLockedUntil, Date.now()) + 100;
-                        self.$("calc").disabled = true;
-                        self.$("calc").style.opacity = "0.5";
-                        setTimeout(() => {
-                            if (Date.now() >= self.calcLockedUntil) {
-                                self.$("calc").disabled = false;
-                                self.$("calc").style.opacity = "1";
-                            }
-                        }, 100);
-                    }
-                };
-
-                document.getElementById('tsp').onclick = () => {
-                    if (self.timer) {
-                        clearInterval(self.timer);
-                        self.timer = null;
-                        self.pauseSec = (Date.now() - self.startTime) / 1000;
-                        self.updateTimerDisplay(self.pauseSec);
-                    }
-                };
-
-                document.getElementById('pr').onclick = () => {
-                    let accRaw = 0;
-                    document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
-                        let r = parseFloat(el.dataset.rawValCapped);
-                        if (!isNaN(r)) accRaw += r;
-                    });
-                    self.passbookOffset = Math.ceil(accRaw);
-                    self.updateTotal();
-                };
-
-                document.getElementById('copyHistory').onclick = () => {
-                    try {
-                        let lines = [];
-                        lines.push(`モンスター/${self.$("ms").options[self.$("ms").selectedIndex].text}`);
-                        lines.push(`総獲得/平均タイム/想定玉給`);
-                        lines.push(`${self.$("hs").textContent.replace(/,/g, '')}/${self.$("at").textContent}/${self.$("fc").textContent}`);
-                        lines.push(``);
-                        lines.push(`#/戦闘時間/獲得exp/呼び数/お供/種類`);
-
-                        document.querySelectorAll(".exp-row").forEach(el => {
-                            let type = el.dataset.type || "";
-                            let bid = el.dataset.bid || "-";
-
-                            if (type === "lap_only") {
-                                lines.push(`${bid}/LAPMARK////`);
-                                return;
-                            }
-                            if (type === "job") {
-                                let time = self.formatTime(parseFloat(el.dataset.sec) || 0);
-                                lines.push(`${bid}/${time}////転職`);
-                                return;
-                            }
-
-                            let time = self.formatTime(parseFloat(el.dataset.sec) || 0);
-                            let expVal = parseInt(el.dataset.val) || 0;
-                            let exp = expVal.toLocaleString().replace(/,/g, '');
-                            let count = parseInt(el.dataset.count);
-                            let call = !isNaN(count) ? (self.L[count] || "--") : "--";
-                            let partner = "お供無";
-                            let rs = el.querySelector(".rs");
-                            if (rs) partner = rs.options[rs.selectedIndex]?.text || "お供無";
-                            let tname = type === "pass" ? "通帳" : type === "angel" ? "エンゼル" : type === "overflow" ? "溢れ" : "通常";
-
-                            lines.push(`${bid}/${time}/${exp}/${call}/${partner}/${tname}`);
-                        });
-
-                        navigator.clipboard.writeText(lines.join("\n")).then(() => alert("履歴をコピーしました"));
-                    } catch (e) { alert("コピー失敗"); }
-                };
-
-                document.getElementById('buffReset').onclick = () => {
-                    self.$("fd").checked = true;
-                    self.$("tr").checked = false;
-                    self.$("ag").checked = false;
-                    self.$("em").checked = false;
-                    let gr = document.querySelector('input[name="e_exp"][value="genki"]');
-                    if (gr) gr.checked = true;
-                    self.$("pb").value = "0";
-                    self.updateUI(true);
-                };
-
-                document.querySelectorAll('input[name="e_exp"], #fd, #tr, #ag, #em, #ms, #pb').forEach(el => {
-                    el.onchange = () => self.updateUI(true);
-                });
-                document.getElementById('cn').onchange = () => self.updateUI(false);
-
-                self.updateUI(true);
-            };
-
-            init();
+          if (remaining >= expResult.common) {
+            self.addRow(self.killCount, callCount, expResult.common, "pass", elapsedSec, lapSec, true, expResult.common, null, false);
+          } else if (remaining > 0) {
+            self.addRow(self.killCount, callCount, expResult.common - remaining, "overflow", elapsedSec, lapSec, false, expResult.common - remaining, null, false);
+            self.addRow(self.killCount, callCount, remaining, "pass", elapsedSec, lapSec, true, remaining, null, false);
+          } else {
+            self.addRow(self.killCount, callCount, expResult.common, "overflow", elapsedSec, lapSec, true, expResult.common, null, false);
+          }
+        } else {
+          self.addRow(self.killCount, callCount, expResult.total, "normal", elapsedSec, lapSec, true, expResult.total, null, false);
         }
-    };
 
-    global.ExpCalculator = {
+        self.lastLapSec = elapsedSec;
+        self.updateTimerDisplay(elapsedSec);
+
+        // 加算後3秒間はボタンをロック
+        self.calcLockedUntil = Date.now() + 3000;
+        const calcBtn = self.$("btnCalc");
+        calcBtn.disabled = true;
+        calcBtn.style.opacity = "0.5";
+        let countdown = 3;
+        const countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            calcBtn.textContent = `(${countdown})`;
+          } else {
+            clearInterval(countdownInterval);
+            calcBtn.disabled = false;
+            calcBtn.style.opacity = "1";
+            calcBtn.textContent = "加算";
+            self.updateUI();
+          }
+        }, 1000);
+      };
+
+      // ACボタン（全リセット）
+      self.$("btnAllClear").onclick = () => {
+        if (self.timer) { clearInterval(self.timer); self.timer = null; }
+        self.pauseSec       = 0;
+        self.startTime      = 0;
+        self.lastLapSec     = 0;
+        self.killCount      = 0;
+        self.jobOffsetSec   = 0;
+        self.passbookOffset = 0;
+        self.$("rowHistory").innerHTML = "";
+        self.updateTimerDisplay(0);
+        self.updateTotal();
+        self.updateUI();
+      };
+
+      // 通帳1Lv引き出しボタン
+      self.$("btnPassbookWithdraw").onclick = () => {
+        let accumulatedRaw = 0;
+        document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
+          const raw = parseFloat(el.dataset.rawValCapped);
+          if (!isNaN(raw)) accumulatedRaw += raw;
+        });
+        const balance = accumulatedRaw - self.passbookOffset;
+        if (balance <= 0) return;
+        const withdrawn = Math.min(self.EXP_PER_LV, balance);
+        self.passbookOffset += withdrawn;
+        self.updateTotal();
+      };
+
+      // LAPボタン
+      self.$("btnLap").onclick = () => {
+        const elapsedSec = self.timer
+          ? (Date.now() - self.startTime) / 1000
+          : self.pauseSec;
+        self.addRow("LAP", 0, 0, "lap_only", elapsedSec, elapsedSec - self.lastLapSec);
+        self.lastLapSec = elapsedSec;
+        self.updateTimerDisplay(elapsedSec);
+      };
+
+      // 転職ボタン
+      self.$("btnJob").onclick = () => {
+        if (!self.timer && self.pauseSec === 0) return;
+        const elapsedSec = self.timer
+          ? (Date.now() - self.startTime) / 1000
+          : self.pauseSec;
+        self.jobOffsetSec += 20;
+        if (self.jobOffsetSec > elapsedSec) self.jobOffsetSec = elapsedSec;
+        self.updateTimerDisplay(elapsedSec);
+        if (self.timer) {
+          self.addRow("JOB", 0, 0, "job", elapsedSec, elapsedSec - self.lastLapSec);
+          self.lastLapSec = elapsedSec;
+        }
+      };
+
+      // 最適+1ボタン
+      self.$("pob").onclick = () => {
+        self.$("cn").value = Math.min(12, self.optCallCount + 1);
+        self.updateUI(false);
+      };
+
+      // タイマー開始ボタン
+      self.$("btnTimerStop").onclick = () => {
+        if (!self.timer) {
+          self.startTime = Date.now() - self.pauseSec * 1000;
+          self.timer = setInterval(() => {
+            const elapsedSec = (Date.now() - self.startTime) / 1000;
+            self.updateTimerDisplay(elapsedSec);
+          }, 30);
+          // 開始直後のロック解除
+          self.calcLockedUntil = Math.max(self.calcLockedUntil, Date.now()) + 100;
+          self.$("btnCalc").disabled = true;
+          self.$("btnCalc").style.opacity = "0.5";
+          setTimeout(() => {
+            if (Date.now() >= self.calcLockedUntil) {
+              self.$("btnCalc").disabled = false;
+              self.$("btnCalc").style.opacity = "1";
+            }
+          }, 100);
+        }
+      };
+
+      // タイマー停止ボタン
+      self.$("btnTimerPause").onclick = () => {
+        if (self.timer) {
+          clearInterval(self.timer);
+          self.timer = null;
+          self.pauseSec = (Date.now() - self.startTime) / 1000;
+          self.updateTimerDisplay(self.pauseSec);
+        }
+      };
+
+      // 通帳リセットボタン
+      self.$("btnPassbookReset").onclick = () => {
+        let accumulatedRaw = 0;
+        document.querySelectorAll('.exp-row[data-type="pass"]').forEach(el => {
+          const raw = parseFloat(el.dataset.rawValCapped);
+          if (!isNaN(raw)) accumulatedRaw += raw;
+        });
+        self.passbookOffset = Math.ceil(accumulatedRaw);
+        self.updateTotal();
+      };
+
+      // 履歴コピーボタン
+      self.$("btnCopyHistory").onclick = () => {
+        try {
+          const lines = [];
+          lines.push(`モンスター/${self.$("ms").options[self.$("ms").selectedIndex].text}`);
+          lines.push(`総獲得/平均タイム/想定玉給`);
+          lines.push(
+            `${self.$("totalExpDisplay").textContent.replace(/,/g, "")}` +
+            `/${self.$("avgTimeDisplay").textContent}` +
+            `/${self.$("estimatedGoldDisplay").textContent}`
+          );
+          lines.push(``);
+          lines.push(`#/戦闘時間/獲得exp/呼び数/お供/種類`);
+
+          document.querySelectorAll(".exp-row").forEach(el => {
+            const rowType = el.dataset.type || "";
+            const rowId   = el.dataset.bid  || "-";
+
+            if (rowType === "lap_only") {
+              lines.push(`${rowId}/LAPMARK////`);
+              return;
+            }
+            if (rowType === "job") {
+              const timeStr = self.formatTime(parseFloat(el.dataset.sec) || 0);
+              lines.push(`${rowId}/${timeStr}////転職`);
+              return;
+            }
+
+            const timeStr   = self.formatTime(parseFloat(el.dataset.sec) || 0);
+            const expVal    = (parseInt(el.dataset.val) || 0).toString();
+            const callIdx   = parseInt(el.dataset.count);
+            const callLabel = !isNaN(callIdx) ? (self.CALL_LABELS[callIdx] || "--") : "--";
+            const partnerSelect = el.querySelector(".rs");
+            const partnerLabel  = partnerSelect
+              ? (partnerSelect.options[partnerSelect.selectedIndex]?.text || "お供無")
+              : "お供無";
+            const typeLabel = rowType === "pass"     ? "通帳"
+                            : rowType === "angel"    ? "エンゼル"
+                            : rowType === "overflow" ? "溢れ"
+                            : "通常";
+            lines.push(`${rowId}/${timeStr}/${expVal}/${callLabel}/${partnerLabel}/${typeLabel}`);
+          });
+
+          navigator.clipboard.writeText(lines.join("\n"))
+            .then(() => alert("履歴をコピーしました"));
+        } catch (e) {
+          alert("コピー失敗");
+        }
+      };
+
+      // OCリセットボタン（バフを初期状態に戻す）
+      self.$("btnBuffReset").onclick = () => {
+        self.$("fd").checked = true;
+        self.$("tr").checked = false;
+        self.$("ag").checked = false;
+        self.$("em").checked = false;
+        const genkiradio = document.querySelector('input[name="e_exp"][value="genki"]');
+        if (genkiradio) genkiradio.checked = true;
+        self.$("pb").value = "0";
+        self.updateUI(true);
+      };
+
+      // バフ変更時のUI更新（討伐数は自動調整）
+      document.querySelectorAll('input[name="e_exp"], #fd, #tr, #ag, #em, #ms, #pb').forEach(el => {
+        el.onchange = () => self.updateUI(true);
+      });
+
+      // 討伐数変更時のUI更新（討伐数は変えない）
+      self.$("cn").onchange = () => self.updateUI(false);
+
+      // 初期表示
+      self.updateUI(true);
+    },
+  };
+
+  // 外部公開 API
+  global.ExpCalculator = {
     render: ExpCalc.render.bind(ExpCalc),
-    destroy: function() {
-        if (ExpCalc.timer) {
-            clearInterval(ExpCalc.timer);
-            ExpCalc.timer = null;
-        }
-        // 必要に応じてグローバル変数もリセット
-        ExpCalc.startTime = 0;
-        ExpCalc.pauseSec = 0;
-        ExpCalc.lastLap = 0;
-        ExpCalc.jobOffset = 0;
-        ExpCalc.passbookOffset = 0;
-    }
-};
+    destroy: function () {
+      if (ExpCalc.timer) {
+        clearInterval(ExpCalc.timer);
+        ExpCalc.timer = null;
+      }
+      ExpCalc.startTime      = 0;
+      ExpCalc.pauseSec       = 0;
+      ExpCalc.lastLapSec     = 0;
+      ExpCalc.jobOffsetSec   = 0;
+      ExpCalc.passbookOffset = 0;
+    },
+  };
 })(window);
