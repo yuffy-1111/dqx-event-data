@@ -955,7 +955,7 @@
   };
 
   // 外部公開 API
-  global.ExpCalculator = {
+  global.Expmercenary.js = {
     render: ExpCalc.render.bind(ExpCalc),
     destroy: function () {
       if (ExpCalc.timer) {
