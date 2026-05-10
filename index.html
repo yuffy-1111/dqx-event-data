@@ -61,7 +61,7 @@
 <!-- 既存のツール（事前読み込み→起動高速化のため残す） -->
 <script src="./tools/dqx-checker-mobile-fixed.js"></script>
 <script src="./tools/exp-calculator-2.js"></script>
-<script src="./test/testtool.js"></script>
+<script src="./tools/testtool.js"></script>
 
 <script>
 window.addEventListener('load', function() {
@@ -81,7 +81,7 @@ window.addEventListener('load', function() {
     // ★ 新ツール（パスワード付き）を追加
     DQXTools.register('test', {
         name: 'ツールテスト枠',
-        url: './test/testtool.js',
+        url: './tools/testtool.js',
         renderFn: 'DQTtool.render',
     });
     
