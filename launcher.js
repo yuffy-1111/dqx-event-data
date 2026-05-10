@@ -213,6 +213,15 @@ const DQXTools = {
         const tool = this.tools[toolId];
         if (!tool) return;
         if (this.currentTool === toolId) return;
+
+        //特定ツールのパスワード設定
+        if (tool.password) {
+        const inputPass = prompt(`🔒 「${tool.name}」のパスワードを入力してください:`);
+        if (inputPass !== tool.password) {
+            alert('パスワードが違います。');
+            return;
+        }
+    }
         
         // 現在のツールを破棄してから新しいツールへ
         this.destroyCurrentTool();
