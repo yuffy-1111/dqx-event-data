@@ -10,7 +10,6 @@
             box-sizing: border-box;
         }
         
-        /* ★ これが重要：bodyの上部余白を固定 */
         body {
             margin: 0 !important;
             padding: 20px 0 0 0 !important;
@@ -23,7 +22,6 @@
             padding: 20px 0 0 0 !important;
         }
         
-        /* メインコンテナ */
         #dqx-app {
             max-width: 900px;
             margin: 0 auto;
@@ -31,20 +29,16 @@
             padding: 0 16px;
         }
         
-        /* ★ ランチャーの上の余白をゼロに強制 */
         #dqx-app > div:first-child {
             margin-top: 0 !important;
             padding-top: 0 !important;
         }
         
-        /* ツールとの間隔（これは別） */
         #dqx-tool-container {
             margin-top: 24px !important;
-            /* ★ スマートフォン用の下部パディング */
             padding-bottom: 100px !important;
         }
         
-        /* スマホ時 */
         @media (max-width: 768px) {
             body {
                 padding: 12px 0 0 0 !important;
@@ -64,10 +58,14 @@
 <div id="dqx-app"></div>
 
 <script src="./launcher.js"></script>
+<!-- 既存のツール（事前読み込み→起動高速化のため残す） -->
 <script src="./tools/dqx-checker-mobile-fixed.js"></script>
+<script src="./tools/exp-calculator-2.js"></script>
+<!-- ★ 新ツールは事前読み込みしない（パスワード入力後に動的読み込みするため） -->
 
 <script>
 window.addEventListener('load', function() {
+    // 既存ツール（パスワードなし）
     DQXTools.register('daily-checker', {
         name: 'コンテンツ<br>チェッカー',
         url: './tools/dqx-checker-mobile-fixed.js',
@@ -78,6 +76,14 @@ window.addEventListener('load', function() {
         name: '傭兵用多機能<br>ツールver1.5.5',
         url: './tools/exp-calculator-2.js',
         renderFn: 'ExpCalculator.render'
+    });
+    
+    // ★ 新ツール（パスワード付き）を追加
+    DQXTools.register('new-daily-checker', {
+        name: 'ツールテスト枠',
+        url: 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/test/testtool',
+        renderFn: 'DQXDailyChecker.render',
+        password: 'yuffyrre1300'    // ← パスワード設定
     });
     
     DQXTools.init('dqx-app');
