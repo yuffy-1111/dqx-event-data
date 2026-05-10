@@ -1,4 +1,4 @@
-// ========== DQX Tools Launcher ==========
+// ==========ツールランチャー==========
 const DQXTools = {
     tools: {},
     currentTool: null,
