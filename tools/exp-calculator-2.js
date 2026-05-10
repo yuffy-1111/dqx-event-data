@@ -24,9 +24,11 @@
     /** お供の種類ごとの基本経験値 */
     PARTNER_EXP: {
       none:     0,
-      mk:       48240, // メタキング
-      hm:       12060, // はぐメタ
-      tappitsu:  4800, // 達筆（書いたもん）
+      mk:       48240, // メタキン
+      hm1:       12060, // はぐメタ1
+      hm2:       24120, // はぐメタ2
+      hm3:       36180, // はぐメタ3
+      tappitsu:  4800, // 達筆
       gn:        2240, // ゲノミー
       sn:        1120, // 仙人
       zucchini:  9010, // ズッキ祖（ダースリカント専用）
@@ -311,7 +313,9 @@
     getPartnerOptions: function (monsterId) {
       const baseOptions =
         `<option value="none">お供無</option>` +
-        `<option value="hm">はぐメタ</option>` +
+        `<option value="hm1">はぐメタ1</option>` +
+        `<option value="hm2">はぐメタ2</option>` +
+        `<option value="hm3">はぐメタ3</option>` +
         `<option value="mk">メタキン</option>` +
         `<option value="gn">ゲノミー</option>` +
         `<option value="sn">仙人</option>`;
