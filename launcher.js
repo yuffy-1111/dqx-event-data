@@ -259,7 +259,7 @@ const DQXTools = {
         loadingDiv.innerHTML = `
             <div style="text-align: center;">
                 <div style="margin-bottom: 24px;">
-                    <img src="./images/dqx_logo.png" style="width: 320px; max-width: 80vw; height: auto; opacity: 0.95;" onerror="this.style.display='none'">
+                    <img src="./images/dqx_loading.jpg" style="width: 320px; max-width: 80vw; height: auto; opacity: 0.95;" onerror="this.style.display='none'">
                 </div>
                 <div id="dqx-loading-text" style="color: white; font-size: 1.3rem; font-weight: bold; margin-bottom: 20px;">
                     読み込み中...
