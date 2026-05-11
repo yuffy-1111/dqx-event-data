@@ -237,6 +237,19 @@ const DQXTools = {
         this.switchToHomeButton();
 
         // ========== ローディング画面 ==========
+        // ▼ 画像を増やすときはここに追加するだけ（weightで確率調整） ▼
+        const loadingImages = [
+            { src: './images/dqx_loading.jpg',  weight: 40 },
+            { src: './images/dqx_loading2.jpg',  weight: 20 },
+            { src: './images/dqx_loading3.jpg',  weight: 20 },
+            { src: './images/dqx_loading4.jpg',  weight: 17 },
+            { src: './images/dqx_loading5.jpg',  weight: 3 },
+        ];
+        // ▲ ここまで ▲
+        const totalWeight = loadingImages.reduce((sum, img) => sum + img.weight, 0);
+        let rand = Math.random() * totalWeight;
+        const randomImage = loadingImages.find(img => (rand -= img.weight) < 0).src;
+
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'dqx-loading';
         loadingDiv.style.cssText = `
@@ -259,7 +272,7 @@ const DQXTools = {
         loadingDiv.innerHTML = `
             <div style="text-align: center;">
                 <div style="margin-bottom: 24px;">
-                    <img src="./images/dqx_loading.jpg" style="width: 320px; max-width: 80vw; height: auto; opacity: 0.95;" onerror="this.style.display='none'">
+                    <img src="${randomImage}" style="width: 320px; max-width: 80vw; height: auto; opacity: 0.95;" onerror="this.style.display='none'">
                 </div>
                 <div id="dqx-loading-text" style="color: white; font-size: 1.3rem; font-weight: bold; margin-bottom: 20px;">
                     読み込み中...
