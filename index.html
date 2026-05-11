@@ -80,37 +80,39 @@
     </style>
     <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const skipMaintenance = urlParams.get('maintenance') === '0';
-    
-    const START_DATE = new Date('2026-05-11 04:00:00');  // 開始日時
-    const END_DATE   = new Date('2026-05-11 15:00:00');  // 終了日時
-    
-    const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            const overlay = document.createElement('div');
-            overlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.9);
-                z-index: 10000;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                flex-direction: column;
-                font-family: sans-serif;
-            `;
-            overlay.innerHTML = `
-                <div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">
-                    メンテナンス中
-                </div>
-            `;
-            document.body.appendChild(overlay);
-        });
-    }
+const skipMaintenance = urlParams.get('maintenance') === '0';
+
+const START_DATE = new Date('2026-05-11 04:00:00');
+const END_DATE   = new Date('2026-05-11 15:00:00');
+
+const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
+
+if (MAINTENANCE_MODE && !skipMaintenance) {
+    document.addEventListener('DOMContentLoaded', function() {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-family: sans-serif;
+            pointer-events: none;
+        `;
+        overlay.innerHTML = `
+            <div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">
+                メンテナンス中
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    });
+}
 </script>
 </head>
 <body>
