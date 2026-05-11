@@ -59,7 +59,7 @@
 
     async function loadMasterData() {
         try {
-            const res = await fetch("https://gist.githubusercontent.com/yuffy-1111/c54b24141cbde16afedff0058393d8ad/raw/eeab4547e56fdc29e1b60f655bd00204a0cea633/equip_master.json");
+            const res = await fetch("equip_master.json");
             masterData = await res.json();
             return true;
         } catch(e) {
