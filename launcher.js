@@ -258,13 +258,10 @@ const DQXTools = {
 
         loadingDiv.innerHTML = `
             <div style="text-align: center;">
-                <div style="margin-bottom: 20px;">
-                    <img src="./images/dqx_loading.jpg" style="width: 80px; height: auto; opacity: 0.8;" onerror="this.style.display='none'">
+                <div style="margin-bottom: 24px;">
+                    <img src="./images/dqx_logo.png" style="width: 320px; max-width: 80vw; height: auto; opacity: 0.95;" onerror="this.style.display='none'">
                 </div>
-                <div style="margin-bottom: 20px;">
-                    <span style="display: inline-block; width: 60px; height: 60px; border: 4px solid #333; border-top-color: #0066cc; border-radius: 50%; animation: dqxSpin 0.8s linear infinite;"></span>
-                </div>
-                <div id="dqx-loading-text" style="color: white; font-size: 1.5rem; font-weight: bold; margin-bottom: 16px;">
+                <div id="dqx-loading-text" style="color: white; font-size: 1.3rem; font-weight: bold; margin-bottom: 20px;">
                     読み込み中...
                 </div>
                 <div style="color: #aaa; font-size: 0.7rem; max-width: 90%; margin: 0 auto; line-height: 1.5;">
@@ -273,10 +270,6 @@ const DQXTools = {
                 </div>
             </div>
             <style>
-                @keyframes dqxSpin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
                 @keyframes dqxBlink {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.4; }
