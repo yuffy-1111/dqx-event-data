@@ -85,9 +85,9 @@
     const START_DATE = new Date('2026-05-11 04:00:00');  // 開始日時
     const END_DATE   = new Date('2026-05-11 15:00:00');  // 終了日時
     
-    const MAINTENANCE_MODE = !forceSkip && (new Date() >= START_DATE && new Date() <= END_DATE);
-    
+    const MAINTENANCE_MODE = (() => {const forceSkip = new URLSearchParams(window.location.search).get('maintenance') === '0';
     if (MAINTENANCE_MODE) {
+        
         document.addEventListener('DOMContentLoaded', function() {
             const overlay = document.createElement('div');
             overlay.style.cssText = `
