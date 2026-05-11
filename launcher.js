@@ -239,9 +239,9 @@ const DQXTools = {
         // ========== ローディング画面 ==========
         // ▼ 画像を増やすときはここに追加するだけ（weightで確率調整） ▼
         const loadingImages = [
-            { src: './images/dqx_loading.jpg',  weight: 40 },
-            { src: './images/dqx_loading2.jpg',  weight: 20 },
-            { src: './images/dqx_loading3.jpg',  weight: 20 },
+            { src: './images/dqx_loading.jpg',  weight: 30 },
+            { src: './images/dqx_loading2.jpg',  weight: 25 },
+            { src: './images/dqx_loading3.jpg',  weight: 25 },
             { src: './images/dqx_loading4.jpg',  weight: 17 },
             { src: './images/dqx_loading5.jpg',  weight: 3 },
         ];
