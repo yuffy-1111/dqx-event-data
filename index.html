@@ -79,11 +79,12 @@
     }
     </style>
     <script>
-    // ★ ここでメンテナンス期間を指定するだけ ★
-    const START_DATE = new Date('2026-05-11 04:00:00');  // 開始日時
-    const END_DATE   = new Date('2026-05-11 14:29:59');  // 終了日時
+    const urlParams = new URLSearchParams(window.location.search);
+    const skipMaintenance = urlParams.get('maintenance') === '0';
     
-    // 以下は触らない
+    const START_DATE = new Date('2026-05-11 04:00:00');  // 開始日時
+    const END_DATE   = new Date('2026-05-11 15:00:00');  // 終了日時
+    
     const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
     
     if (MAINTENANCE_MODE) {
