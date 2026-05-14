@@ -9,7 +9,7 @@
   const STORAGE_KEY_HIDDEN        = 'dqx_hidden_tasks_v1';
   const STORAGE_KEY_LIM_CHECKS    = 'dqx_limited_checks_v3';
 
-  const EVENTS_URL  = './checker.json';
+  const EVENTS_URL  = './https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
   const RESET_HOUR  = 6; // JST 毎日6時リセット
 
   // ===== 呪文フォーマット定数 =====
