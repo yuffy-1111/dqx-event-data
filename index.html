@@ -4,41 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>ユッフィーのDQXツール</title>
+    <link rel="stylesheet" href="launcher.css">
     <style>
-        /* ===== 強制リセット ===== */
         * {
             box-sizing: border-box;
         }
-        
         body {
             margin: 0 !important;
             padding: 20px 0 0 0 !important;
             background: #eef2f7;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        
         body.dark-mode {
             background: #0f172a;
             padding: 20px 0 0 0 !important;
         }
-        
         #dqx-app {
             max-width: 900px;
             margin: 0 auto;
             width: 100%;
             padding: 0 16px;
         }
-        
         #dqx-app > div:first-child {
             margin-top: 0 !important;
             padding-top: 0 !important;
         }
-        
         #dqx-tool-container {
             margin-top: 24px !important;
             padding-bottom: 100px !important;
         }
-        
         @media (max-width: 768px) {
             body {
                 padding: 12px 0 0 0 !important;
@@ -51,99 +45,106 @@
                 padding-bottom: 120px !important;
             }
         }
-        　　/* メンテナンスオーバーレイ */
-    .maintenance-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.85);
-        backdrop-filter: blur(8px);
-        z-index: 9999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
-    }
-    
-    .maintenance-text {
-        font-size: 3rem;
-        font-weight: bold;
-        color: white;
-        text-align: center;
-        padding: 20px;
-        background: #223a70;
-        border-radius: 20px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
-    </style>
-    <script>
-    const urlParams = new URLSearchParams(window.location.search);
-
-const START_DATE = new Date('2026-05-11 04:00:00');
-const END_DATE   = new Date('2026-05-11 15:00:00');
-
-const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
-
-if (MAINTENANCE_MODE && !skipMaintenance) {
-    document.addEventListener('DOMContentLoaded', function() {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
+        .maintenance-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0);
-            z-index: 10000;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            font-family: sans-serif;
-            pointer-events: none;
-        `;
-        overlay.innerHTML = `
-            <div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">
-                メンテナンス中
-            </div>
-        `;
-        document.body.appendChild(overlay);
-    });
-}
-</script>
+        }
+        .maintenance-text {
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            background: #223a70;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+    </style>
+    <script>
+        // ★修正⑤: skipMaintenance を urlParams から取得するよう修正（未定義エラー解消）
+        const urlParams = new URLSearchParams(window.location.search);
+        const skipMaintenance = urlParams.get('skip') === 'maintenance';
+
+        const START_DATE = new Date('2026-05-11T04:00:00');
+        const END_DATE   = new Date('2026-05-11T15:00:00');
+        const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
+
+        if (MAINTENANCE_MODE && !skipMaintenance) {
+            document.addEventListener('DOMContentLoaded', function() {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    background: rgba(0, 0, 0, 0.85);
+                    z-index: 10000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    flex-direction: column;
+                    font-family: sans-serif;
+                `;
+                overlay.innerHTML = `
+                    <div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">
+                        メンテナンス中
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+            });
+        }
+    </script>
 </head>
 <body>
-    
 <div id="dqx-app"></div>
-
 <script src="./launcher.js"></script>
-    
 <script>
 window.addEventListener('load', function() {
     DQXTools.register('Checker', {
         name: 'コンテンツ<br>チェッカー',
+        icon: '📋',
+        desc: '進捗管理',
         url: './tools/checker.js',
         renderFn: 'Checker.render'
     });
-    
     DQXTools.register('exp-m', {
-        name: '傭兵用多機能<br>ツールver1.5.5',
+        name: '傭兵用多機能ツール',
+        icon: '⚔️',
+        desc: '経験値計算<br>タイマー',
         url: './tools/expmercenary.js',
         renderFn: 'Expmercenary.render'
     });
-    
-    DQXTools.register('test', {
-        name: 'ツールテスト枠',
+　　 DQXTools.register('versions', {
+    　　 name: '傭兵用多機能ツール<br>旧ver',
+    　　 icon: '📜',
+    　　 desc: '旧verセレクタ',
+    　　 url: './tools/version_selector.js',
+    　　 renderFn: 'VersionSelector.render'
+　　 });
+　　  DQXTools.register('test', {
+        name: 'テスト枠',
+        icon: '🔑',
+        desc: '管理者専用',
         url: './tools/testtool.js',
         renderFn: 'DQtool.render',
         password: 'yuffyrre1300'
     });
-    
+     DQXTools.register('settings', {
+    　　 name: '設定',
+    　　 icon: '⚙️',
+    　　 desc: 'キャッシュ<br>フィードバック',
+    　　 url: './tools/settings.js',
+    　　 renderFn: 'Settings.render'
+　　 });
     DQXTools.init('dqx-app');
 });
 </script>
-
 </body>
 </html>
