@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.1.1';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -22,7 +22,7 @@ const DQXTools = {
     currentTool: null,
     container: null,
     darkMode: false,
-    boundResizeHandler: null,  // 追加: リサイズハンドラを保存
+    boundResizeHandler: null,
 
     // ----- 登録機能（変更なし）-----
     register: function(toolId, toolConfig) {
@@ -166,7 +166,6 @@ const DQXTools = {
         this.addDarkModeButtonToMenu();
     },
 
-    // ==================== メニュー内にホーム・ダークモードボタンを追加 ====================
     addDarkModeButtonToMenu: function() {
         const menuBar = document.getElementById('tool-menu-bar');
         if (!menuBar) return;
@@ -201,7 +200,6 @@ const DQXTools = {
         toolContainer.id = 'dqx-tool-container';
         this.container.appendChild(toolContainer);
 
-        // ========== ローディング画面 ==========
         const loadingImages = [
             { src: './images/dqx_loading.jpg',  weight: 30 },
             { src: './images/dqx_loading2.jpg', weight: 25 },
@@ -294,7 +292,8 @@ const DQXTools = {
         newContainer.id = 'dqx-tool-container';
         this.container.appendChild(newContainer);
 
-        const scripts = document.querySelectorAll('script[src*="checker.js"], script[src*="expmercenary.js"], script[src*="testtool.js"]');
+        // 修正: 全ての testtool 関連スクリプトを削除
+        const scripts = document.querySelectorAll('script[src*="testtool"]');
         scripts.forEach(script => script.remove());
 
         this.currentTool = null;
@@ -302,6 +301,7 @@ const DQXTools = {
     },
 
     destroyCurrentTool: function() {
+        // まず通常のツールを破棄
         if (this.currentTool) {
             const tool = this.tools[this.currentTool];
             if (tool) {
@@ -311,9 +311,16 @@ const DQXTools = {
                 }
             }
         }
+        
+        // 追加: 手動で追加したテストツール（DQtool, DQtool2, DQtool3 など）も破棄
+        const possibleGlobalNames = ['DQtool', 'DQtool2', 'DQtool3', 'Tool4'];
+        possibleGlobalNames.forEach(globalName => {
+            if (window[globalName] && typeof window[globalName].destroy === 'function') {
+                window[globalName].destroy();
+            }
+        });
     },
 
-    // ==================== ランチャー自身の破棄（追加） ====================
     destroy: function() {
         if (this.boundResizeHandler) {
             window.removeEventListener('resize', this.boundResizeHandler);
@@ -338,7 +345,6 @@ const DQXTools = {
     }
 };
 
-// 外部から destroy を呼べるように公開
 if (typeof window.DQXTools === 'undefined') {
     window.DQXTools = DQXTools;
 }
