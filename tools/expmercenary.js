@@ -385,61 +385,59 @@
 
       // 行番号表示
       const rowIdHtml = rowId === "LAP"
-        ? `<span style="color:#2cc9ff;font-weight:bold;width:26px;font-size:10px">LAP</span>`
-        : `<span style="color:#999;width:26px;font-size:10px">#${rowId}</span>`;
+        ? `<span class="row-id-lap">LAP</span>`
+        : `<span class="row-id-normal">#${rowId}</span>`;
 
       // タイム表示
       const timeHtml =
-        `<div style="font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums;width:65px">` +
-        `<div style="font-size:11px;font-weight:bold">${this.formatTime(elapsedSec)}</div>` +
+        `<div class="time-cell">` +
+        `<div class="time-main">${this.formatTime(elapsedSec)}</div>` +
         (lapSec != null && lapSec >= 0
-          ? `<div style="color:#2cc9ff;font-size:10px">L ${this.formatTime(lapSec)}</div>`
+          ? `<div class="time-lap">L ${this.formatTime(lapSec)}</div>`
           : "") +
         `</div>`;
 
       // 経験値表示
       let expHtml;
       if (rowId === "LAP") {
-        expHtml = `<div style="width:95px;color:#aaa;font-size:10px">LAP MARK</div>`;
+        expHtml = `<div class="exp-cell-lap">LAP MARK</div>`;
       } else if (rowType === "job") {
         expHtml =
-          `<div style="width:95px">` +
-          `<span style="color:${TYPE_COLOR[rowType]};font-size:10px">${TYPE_LABEL[rowType]}</span>` +
+          `<div class="exp-cell">` +
+          `<span class="exp-label" style="color:${TYPE_COLOR[rowType]}">${TYPE_LABEL[rowType]}</span>` +
           `</div>`;
       } else {
         expHtml =
-          `<div style="width:95px">` +
-          `<strong class="ev" style="font-size:13px;min-width:62px;text-align:right;` +
-          `font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums">` +
-          `${expVal.toLocaleString()}</strong>` +
-          `<span style="color:${TYPE_COLOR[rowType]};font-size:10px">${TYPE_LABEL[rowType]}</span>` +
+          `<div class="exp-cell">` +
+          `<strong class="exp-value">${expVal.toLocaleString()}</strong>` +
+          `<span class="exp-label" style="color:${TYPE_COLOR[rowType]}">${TYPE_LABEL[rowType]}</span>` +
           `</div>`;
       }
 
       // デスペナチェックボックス
       const deathPenaltyHtml =
-        `<label style="margin:0 2px;display:inline-flex;align-items:center">` +
+        `<label class="desp-label">` +
         `<input type="checkbox" class="desp-tgl" ${hasDeathPenalty ? "checked" : ""}>` +
-        `<span style="font-size:9px">💀</span></label>`;
+        `<span class="desp-icon">💀</span></label>`;
 
       // お供・呼び数セレクト（LAP/転職行は非表示）
       const controlsHtml = (rowId !== "LAP" && rowType !== "job")
-        ? `<div style="display:flex;gap:3px;flex:1">` +
-          `<select class="rs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">` +
+        ? `<div class="row-controls">` +
+          `<select class="rs">` +
           `${this.getPartnerOptions(row.dataset.monsterId)}</select>` +
-          `<select class="cs" style="font-size:12px;border:1px solid #7ab8ff;border-radius:2px;padding:3px">` +
+          `<select class="cs">` +
           `${this.CALL_LABELS.map((label, i) =>
             i > 0 ? `<option value="${i}" ${i == callCount ? "selected" : ""}>${label}</option>` : ""
           ).join("")}` +
           `</select></div>`
-        : `<div style="flex:1;color:#aaa;text-align:center;font-size:10px">----------</div>`;
+        : `<div class="row-controls-placeholder">----------</div>`;
 
       row.innerHTML =
         rowIdHtml +
         timeHtml +
         expHtml +
         deathPenaltyHtml +
-        `<button class="del" style="border:none;background:none;color:#aaa;cursor:pointer;font-size:19px;padding:0 4px">×</button>` +
+        `<button class="del">×</button>` +
         controlsHtml;
 
       // 経験値再計算イベント（LAP/転職行は不要）
@@ -459,7 +457,7 @@
                               : expResult.total;
           row.dataset.val          = newExpVal;
           row.dataset.rawValCapped = newExpVal;
-          row.querySelector(".ev").textContent = newExpVal.toLocaleString();
+          row.querySelector(".exp-value").textContent = newExpVal.toLocaleString();
 
           self.updateTotal();
         };
@@ -514,24 +512,20 @@
   .c{max-width:none;width:100%;margin:0;padding:0;background:transparent;border:none;border-radius:0;font-family:sans-serif;color:#333;line-height:1.25}
   select,input,button{font-family:inherit}
   .h{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px}
-  /* ボタンスタイル */
   .btn-primary{background:#0066cc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;box-shadow:0 2px 4px rgba(0,0,0,0.2)}
   .btn-danger{background:#e74c3c;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
   .btn-info{background:#3498db;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
   .btn-warning{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;font-weight:bold;cursor:pointer}
   .btn-teal{background:#00bcd4;color:#fff;border:none;border-radius:4px;font-weight:bold;cursor:pointer}
-  /* パネル背景 */
   .panel-bg{background:#f9f9f9;border:1px solid #eee;border-radius:6px}
-  /* 行内セレクト */
-  .rs,.cs{font-size:12px!important;padding:2px 4px!important;min-width:52px}
-  .rs{flex:1.45!important}
-  .cs{flex:0.9!important}
-  /* タブ数字フォント */
-  #timerDisplay,#lapTimeDisplay,#avgTimeDisplay,#passbookExpDisplay,#passbookLimitText{font-family:'Verdana',system-ui,sans-serif!important;font-variant-numeric:tabular-nums}
-  #passbookExpDisplay,#passbookLimitText{font-size:15px!important;font-weight:bold}
-  #timer-row{background:#f8f9fc!important;border-radius:6px;padding:6px 8px!important;margin-bottom:6px!important}
-  label{color:#000!important}
-  /* カラークラス */
+  .rs,.cs{font-size:12px;padding:2px 4px;min-width:52px}
+  .rs{flex:1.45}
+  .cs{flex:0.9}
+  .mono-digit{font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+  #timerDisplay,#lapTimeDisplay,#avgTimeDisplay,#passbookExpDisplay,#passbookLimitText{font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+  #passbookExpDisplay,#passbookLimitText{font-size:15px;font-weight:bold}
+  .timer-row{background:#f8f9fc;border-radius:6px;padding:6px 8px;margin-bottom:6px}
+  label{color:#000}
   .text-orange{color:#f39c12}
   .text-green{color:#27ae60}
   .text-cyan{color:#2cc9ff}
@@ -546,57 +540,83 @@
   .passbook-buttons{display:flex;gap:6px;justify-content:center}
   .passbook-buttons button{background:#06c;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;flex:1}
   #ms{text-align:center}
-  /* 入力フィールドのボーダー色統一 */
-  #ms,#pb,#cn,.rs,.cs{border-color:#7ab8ff!important}
-  /* タイマー停止ボタン */
-  #btnTimerStop{background:#008888!important;color:#fff!important;border:1px solid #00aaaa!important;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px}
-  /* 履歴コピーボタン */
-  .btn-copy{background:#008888!important;color:#fff!important;border:none!important;border-radius:6px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:4px 8px;font-size:12px}
-  /* OCリセットボタン */
-  .btn-oc{background:#fff1f0!important;border:1px solid #ffa39e!important;color:#cf1322!important;border-radius:4px;padding:6px 12px;font-size:12px;cursor:pointer;margin-right:8px}
-  /* ダークモード */
+  #ms,#pb,#cn,.rs,.cs{border-color:#7ab8ff}
+  #btnTimerStop{background:#008888;color:#fff;border:1px solid #00aaaa;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px}
+  .btn-copy{background:#008888;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:4px 8px;font-size:12px}
+  .btn-oc{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;padding:6px 12px;font-size:12px;cursor:pointer;margin-right:8px}
+  
+  /* 背景クラス */
+  .exp-card{background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px}
+  .opt-button{background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px}
+  .monster-select{background:#f0f7ff}
+  .reward-card{background:#f0f7ff}
+  
+  /* 行内クラス */
+  .row-id-lap{color:#2cc9ff;font-weight:bold;width:26px;font-size:10px}
+  .row-id-normal{color:#999;width:26px;font-size:10px}
+  .time-cell{font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums;width:65px}
+  .time-main{font-size:11px;font-weight:bold}
+  .time-lap{color:#2cc9ff;font-size:10px}
+  .exp-cell{width:95px}
+  .exp-cell-lap{width:95px;color:#aaa;font-size:10px}
+  .exp-value{font-size:13px;min-width:62px;text-align:right;font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+  .exp-label{font-size:10px}
+  .desp-label{margin:0 2px;display:inline-flex;align-items:center}
+  .desp-icon{font-size:9px}
+  .del{border:none;background:none;color:#aaa;cursor:pointer;font-size:19px;padding:0 4px}
+  .row-controls{display:flex;gap:3px;flex:1}
+  .row-controls-placeholder{flex:1;color:#aaa;text-align:center;font-size:10px}
+  
+  /* ===== ダークモード ===== */
   body.dark-mode{background:#0a0a0f}
   body.dark-mode .c{background:#1a1a2a;color:#e8e8f0}
-  body.dark-mode select,body.dark-mode input,body.dark-mode button{background:#2a2a3a!important;color:#e8e8f0!important}
-  body.dark-mode .h{border-bottom-color:#2a2a3a!important}
-  body.dark-mode .panel-bg{background:#0f0f17!important;border-color:#2a2a3a!important}
-  body.dark-mode #currentExpDisplay{color:#5a9eff!important}
-  body.dark-mode .text-orange{color:#ffaa66!important}
-  body.dark-mode .text-green{color:#66ffaa!important}
-  body.dark-mode .text-red{color:#ff8888!important}
-  body.dark-mode #totalExpDisplay{color:#fff!important}
-  body.dark-mode #timer-row{background:#2a2f45!important}
-  body.dark-mode label{color:#e8e8f0!important}
-  body.dark-mode .btn-primary{background:#1a6eaa!important;color:#fff!important;border:1px solid #3399cc!important}
-  body.dark-mode .btn-danger{background:#aa3333!important;color:#fff!important;border:1px solid #cc5555!important}
-  body.dark-mode .btn-info{background:#1a77aa!important;color:#fff!important;border:1px solid #3399cc!important}
-  body.dark-mode .btn-warning{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
-  body.dark-mode .btn-teal{background:#1a8899!important;color:#fff!important;border:1px solid #33aabb!important}
-  body.dark-mode .passbook-area{background:#1e2a44!important}
-  body.dark-mode .passbook-buttons button{background:#1a73e8!important}
-  body.dark-mode #btnTimerStop{background:#006666!important;border:1px solid #008888!important}
-  body.dark-mode .btn-copy{background:#006666!important}
-  body.dark-mode .btn-oc{background:#2a1515!important;border:1px solid #883333!important;color:#cc7777!important}
-  body.dark-mode #ms,body.dark-mode #pb,body.dark-mode #cn,body.dark-mode .rs,body.dark-mode .cs{border-color:#7ab8ff!important}
-  body.dark-mode [style*="background: #f0f7ff"],body.dark-mode [style*="background:#f0f7ff"],body.dark-mode #ms{background-color:#2a2f45!important}
-  body.dark-mode #ms,body.dark-mode #currentExpDisplay,body.dark-mode #pob div{color:#5a9eff!important}
-  /* ダークモード定義漏れ補完 */
-  body.dark-mode #overflowDisplay{color:#888!important}
-  body.dark-mode #timerDisplay{color:#e8e8f0!important}
-  body.dark-mode #estimatedReward{background:#2a2f45!important;color:#e8e8f0!important}
-  body.dark-mode #rowHistory{border-top-color:#2a2a3a!important;background:#1a1a2a}
-  body.dark-mode .sync-small{color:#aaa!important}
-  body.dark-mode .penalty-ref{color:#ff8888!important}
-  /* インラインの #ddd 区切り線・#666 テキストを上書き */
-  body.dark-mode [style*="border-top:1px solid #ddd"]{border-top-color:#2a2a3a!important}
-  body.dark-mode [style*="color:#666"]{color:#aaa!important}
+  body.dark-mode select,body.dark-mode input,body.dark-mode button{background:#2a2a3a;color:#e8e8f0}
+  body.dark-mode .h{border-bottom-color:#2a2a3a}
+  body.dark-mode .panel-bg{background:#0f0f17;border-color:#2a2a3a}
+  /* 背景上書き（インラインスタイルを打ち消すため !important） */
+  body.dark-mode .exp-card{background:#2a2f45 !important}
+  body.dark-mode .opt-button{background:#2a2f45 !important}
+  body.dark-mode .monster-select{background:#2a2f45 !important}
+  body.dark-mode .reward-card{background:#2a2f45 !important}
+  /* インラインスタイルの色を上書きするものだけ !important */
+  body.dark-mode #currentExpDisplay{color:#5a9eff !important}
+  body.dark-mode #ms,body.dark-mode #pob div{color:#5a9eff !important}
+  body.dark-mode .text-orange{color:#ffaa66}
+  body.dark-mode .text-green{color:#66ffaa}
+  body.dark-mode .text-red{color:#ff8888}
+  body.dark-mode #totalExpDisplay{color:#fff}
+  body.dark-mode .timer-row{background:#2a2f45}
+  body.dark-mode label{color:#e8e8f0}
+  body.dark-mode .btn-primary{background:#1a6eaa;color:#fff;border:1px solid #3399cc}
+  body.dark-mode .btn-danger{background:#aa3333;color:#fff;border:1px solid #cc5555}
+  body.dark-mode .btn-info{background:#1a77aa;color:#fff;border:1px solid #3399cc}
+  body.dark-mode .btn-warning{background:#2a1515;border:1px solid #883333;color:#cc7777}
+  body.dark-mode .btn-teal{background:#1a8899;color:#fff;border:1px solid #33aabb}
+  body.dark-mode .passbook-area{background:#1e2a44}
+  body.dark-mode .passbook-buttons button{background:#1a73e8}
+  body.dark-mode #btnTimerStop{background:#006666;border:1px solid #008888}
+  body.dark-mode .btn-copy{background:#006666}
+  body.dark-mode .btn-oc{background:#2a1515;border:1px solid #883333;color:#cc7777}
+  body.dark-mode #ms,body.dark-mode #pb,body.dark-mode #cn,body.dark-mode .rs,body.dark-mode .cs{border-color:#7ab8ff}
+  body.dark-mode #ms{background-color:#2a2f45}
+  body.dark-mode #overflowDisplay{color:#888}
+  body.dark-mode #timerDisplay{color:#e8e8f0}
+  body.dark-mode #rowHistory{border-top-color:#2a2a3a;background:#1a1a2a}
+  body.dark-mode .sync-small{color:#aaa}
+  body.dark-mode .penalty-ref{color:#ff8888}
+  body.dark-mode .exp-cell-lap{color:#aaa}
+  body.dark-mode .row-id-normal{color:#aaa}
+  body.dark-mode .row-id-lap{color:#2cc9ff}
+  body.dark-mode .time-lap{color:#2cc9ff}
+  body.dark-mode .row-controls-placeholder{color:#aaa}
+  body.dark-mode .del{color:#aaa}
 </style>
 
 <div class="c">
 
   <!-- モンスター選択・通帳選択 -->
   <div style="display:flex;gap:6px;margin-bottom:8px">
-    <select id="ms" style="flex:2;padding:6px;font-size:15px;border:1px solid #7ab8ff;border-radius:4px;font-weight:bold;background:#f0f7ff">
+    <select id="ms" class="monster-select" style="flex:2;padding:6px;font-size:15px;border:1px solid #7ab8ff;border-radius:4px;font-weight:bold">
       <option value="returner"      data-base="13118" data-bonus="0">リターナーモア</option>
       <option value="durahan"       data-base="22802" data-bonus="4561" selected>デュラハーン</option>
       <option value="hell"          data-base="23990" data-bonus="4798">ヘルガーディアン</option>
@@ -613,11 +633,11 @@
 
   <!-- 経験値表示・最適ボタン・討伐数選択 -->
   <div style="display:flex;gap:4px;margin-bottom:8px">
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px;padding:4px">
+    <div class="exp-card" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px">
       <span id="currentExpDisplay" style="font-size:22px;font-weight:bold;color:#06c">0</span>
       <span id="overflowDisplay" style="font-size:9px;color:#999;margin-top:2px;visibility:hidden">溢れ:0</span>
     </div>
-    <div id="pob" style="width:46px;cursor:pointer;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div id="pob" class="opt-button" style="width:46px;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center">
       <div style="font-size:8px;color:#06c">最適</div>
       <div style="font-size:13px;font-weight:bold;color:#06c">+1</div>
     </div>
@@ -633,7 +653,7 @@
   </div>
 
   <!-- バフ設定・タイマー開始ボタン -->
-  <div id="timer-row" style="padding:6px 8px;margin-bottom:8px;display:flex;gap:6px">
+  <div id="timer-row" class="timer-row" style="padding:6px 8px;margin-bottom:8px;display:flex;gap:6px">
     <div style="flex:1;font-size:12px;display:flex;flex-direction:column;align-items:flex-end;padding-right:50px;justify-content:center">
       <!-- エリクサー選択 -->
       <div style="margin-bottom:3px;display:flex;gap:8px">
@@ -662,11 +682,11 @@
     <div class="panel-bg" style="flex:6;padding:6px 8px;border-radius:6px;text-align:center">
       <div>
         <span style="font-size:12px;font-weight:bold">総獲得</span>
-        <span id="totalExpDisplay" style="font-size:22px;font-weight:bold;font-family:'Verdana',system-ui,sans-serif;font-variant-numeric:tabular-nums">0</span>
+        <span id="totalExpDisplay" class="mono-digit" style="font-size:22px;font-weight:bold">0</span>
       </div>
       <div id="penaltyRef" class="penalty-ref" style="display:none"></div>
       <div style="font-size:11px;border-top:1px solid #ddd;margin-top:4px;padding-top:4px">
-        <div>平均:<strong id="avgTimeDisplay" class="text-orange" style="font-family:monospace;font-size:22px;font-weight:bold">--:--.--</strong></div>
+        <div>平均:<strong id="avgTimeDisplay" class="text-orange mono-digit" style="font-size:22px;font-weight:bold">--:--.--</strong></div>
       </div>
     </div>
     <button id="btnCalc" class="btn-primary" style="flex:4;font-size:21px;border-radius:6px">加算</button>
@@ -675,10 +695,10 @@
   <!-- タイマー表示エリア -->
   <div class="panel-bg" style="padding:6px;border-radius:6px;margin-bottom:8px">
     <div style="display:flex;gap:6px;margin-bottom:4px;align-items:flex-start;justify-content:space-between">
-      <div id="timerDisplay" style="font-size:28px;font-weight:bold">00:00.00</div>
+      <div id="timerDisplay" class="mono-digit" style="font-size:28px;font-weight:bold">00:00.00</div>
       <div class="timer-right">
         <div id="syncDisplay" class="sync-small">&nbsp;</div>
-        <div><span style="font-size:10px">LAP:</span><span id="lapTimeDisplay" class="lap-display">00:00.00</span></div>
+        <div><span style="font-size:10px">LAP:</span><span id="lapTimeDisplay" class="lap-display mono-digit">00:00.00</span></div>
       </div>
     </div>
     <!-- タイマー操作ボタン -->
@@ -693,7 +713,7 @@
   <!-- 履歴コピー・想定玉給 -->
   <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
     <button id="btnCopyHistory" class="btn-copy" style="flex:3;white-space:nowrap">履歴コピー</button>
-    <div id="estimatedReward" style="flex:7;background:#f0f7ff;border-radius:6px;padding:3px 6px;text-align:center;font-size:12px;display:flex;align-items:center;justify-content:center">
+    <div id="estimatedReward" class="reward-card" style="flex:7;border-radius:6px;padding:3px 6px;text-align:center;font-size:12px;display:flex;align-items:center;justify-content:center">
       想定玉給:<span id="estimatedGoldDisplay" class="text-green" style="font-weight:bold;font-size:13px;margin-left:4px">--</span>
     </div>
   </div>
@@ -701,7 +721,7 @@
   <!-- 通帳エリア -->
   <div id="passbookArea" class="passbook-area hidden" style="margin-bottom:6px">
     <div class="passbook-info" style="font-size:11px">
-      通帳:<strong id="passbookExpDisplay" class="text-red" style="font-size:13px">0</strong>/<span id="passbookLimitText" style="font-size:13px">0</span>
+      通帳:<strong id="passbookExpDisplay" class="text-red mono-digit" style="font-size:13px">0</strong>/<span id="passbookLimitText" class="mono-digit" style="font-size:13px">0</span>
     </div>
     <div class="passbook-buttons">
       <button id="btnPassbookReset">リセット</button>
@@ -714,8 +734,8 @@
 </div>
 `;
 
-      // ----- イベントリスナー設定 -----
-
+      // ----- イベントリスナー設定（元のコードを完全維持）-----
+      
       // 加算ボタン
       self.$("btnCalc").onclick = () => {
         if (Date.now() < self.calcLockedUntil) return;
