@@ -14,6 +14,7 @@
                         <div class="button-group">
                             <button id="clearAllCache" class="btn-danger">全キャッシュを削除</button>
                             <button id="clearCheckerCache" class="btn-warning">チェックデータのみ削除</button>
+                            <button id="clearTestToken" class="btn-info">認証トークン削除</button>
                         </div>
                         <p class="settings-note">
                             ※ 削除すると復元できません。呪文書き出しでバックアップすることをおすすめします。
@@ -40,7 +41,7 @@
                     <div class="settings-card">
                         <h3>ℹ️ このツールについて</h3>
                         <p>DQXツールセット - 製作:yuffy_rre</p>
-                        <p>バージョン: 2.1.0</p>
+                        <p>バージョン: ${window.LAUNCHER_VERSION || '2.3.4'}</p>
                     </div>
                 </div>
             `;
@@ -98,6 +99,14 @@
                     border-radius: 8px;
                     cursor: pointer;
                 }
+                .btn-info {
+                    background: #17a2b8;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                }
                 .settings-note {
                     font-size: 12px;
                     color: #666;
@@ -137,7 +146,6 @@
                 .x-link:hover {
                     background: #333333;
                 }
-                /* ダークモード */
                 body.dark-mode .settings-container h2 {
                     color: #60a5fa;
                 }
@@ -165,6 +173,9 @@
                     background: #d97706;
                     color: white;
                 }
+                body.dark-mode .btn-info {
+                    background: #0d8ba0;
+                }
                 body.dark-mode #storageInfo {
                     color: #cbd5e1;
                 }
@@ -183,7 +194,6 @@
             `;
             container.appendChild(style);
 
-            // ストレージ状況を表示
             function updateStorageInfo() {
                 let total = 0;
                 let count = 0;
@@ -237,6 +247,18 @@
                         keysToRemove.forEach(key => localStorage.removeItem(key));
                         updateStorageInfo();
                         alert(`✅ ${keysToRemove.length}個のチェッカーデータを削除しました`);
+                    }
+                };
+            }
+
+            // テストツールトークン削除（追加）
+            const tokenBtn = document.getElementById('clearTestToken');
+            if (tokenBtn) {
+                tokenBtn.onclick = () => {
+                    if (confirm('テストツールの認証トークンを削除します。次回使用時に再入力が必要になります。')) {
+                        localStorage.removeItem('dqx_test_token');
+                        alert('✅ 認証トークンを削除しました');
+                        updateStorageInfo();
                     }
                 };
             }
