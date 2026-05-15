@@ -1316,6 +1316,12 @@ body.dark-mode #rightPanel   { background: #111827; }
       darkModeObserver = new MutationObserver(() => renderAll());
       darkModeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     },
+    destroy: function() {
+        if (darkModeObserver) {
+            darkModeObserver.disconnect();
+            darkModeObserver = null;
+        }
+        window.removeEventListener('resize', syncRowHeights);
+    }
   };
-
 })(window);
