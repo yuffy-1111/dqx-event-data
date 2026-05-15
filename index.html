@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>ユッフィーのDQXツール</title>
     <link rel="stylesheet" href="launcher.css">
     <style>
@@ -50,7 +53,6 @@
             top: 0; left: 0;
             width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(8px);
             z-index: 9999;
             display: flex;
             justify-content: center;
@@ -69,12 +71,24 @@
         }
     </style>
     <script>
-        // ★修正⑤: skipMaintenance を urlParams から取得するよう修正（未定義エラー解消）
-        const urlParams = new URLSearchParams(window.location.search);
-        const skipMaintenance = urlParams.get('skip') === 'maintenance';
+        const HTML_VERSION = '2.1.0';
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof window.LAUNCHER_VERSION !== 'undefined') {
+                    if (window.LAUNCHER_VERSION !== HTML_VERSION) {
+                        alert('バージョン情報が一致しません。再読み込みします。');
+                        location.reload(true);
+                    }
+                } else {
+                    alert('新しいデータがあります。');
+                    location.reload(true);
+                }
+            }, 500);
+        });
 
+        const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
         const START_DATE = new Date('2026-05-15T23:50:00');
-        const END_DATE   = new Date('2026-05-16T02:00:00');
+        const END_DATE   = new Date('2026-05-16T00:50:00');
         const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
 
         if (MAINTENANCE_MODE && !skipMaintenance) {
@@ -92,12 +106,105 @@
                     flex-direction: column;
                     font-family: sans-serif;
                 `;
-                overlay.innerHTML = `
-                    <div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">
-                        メンテナンス中<br>23:50〜02:00
-                    </div>
-                `;
+                overlay.innerHTML = `<div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">メンテナンス中<br>23:50〜00:50</div>`;
                 document.body.appendChild(overlay);
+            });
+        }
+
+        // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
+        const TEST_TOOLS = [
+            { file: 'testtool.js', globalName: 'DQtool', name: 'テスト枠1', icon: '🔑' },
+            { file: 'testtool2.js', globalName: 'DQtool2', name: 'テスト枠2', icon: '🔧' },
+            { file: 'testtool3.js', globalName: 'DQtool3', name: 'テスト枠3', icon: '🛠️' }
+        ];
+
+        // テストカードを追加する関数
+        function addTestCards() {
+            const homeGrid = document.querySelector('.home-grid');
+            if (!homeGrid) return;
+            
+            TEST_TOOLS.forEach((tool, index) => {
+                const cardClass = `test-manual-card-${index}`;
+                if (!document.querySelector(`.${cardClass}`)) {
+                    const testCard = document.createElement('div');
+                    testCard.className = `tool-card ${cardClass}`;
+                    testCard.setAttribute('data-tool-id', `test-manual-${index}`);
+                    testCard.innerHTML = `
+                        <div class="tool-card-icon">${tool.icon}</div>
+                        <div class="tool-card-name">${tool.name} 🔒</div>
+                        <div class="tool-card-desc">API認証</div>
+                    `;
+                    testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
+                    homeGrid.appendChild(testCard);
+                }
+            });
+        }
+
+        // テストツール読み込み関数（共通）
+        function handleTestToolClick(filename, globalName, toolName) {
+            const savedToken = localStorage.getItem('dqx_test_token');
+            let token = savedToken;
+            
+            if (!token) {
+                token = prompt(`🔑 ${toolName}を使用するためのGitHub APIトークンを入力してください（開発者専用）`);
+                if (!token) return;
+                localStorage.setItem('dqx_test_token', token);
+            }
+            
+            const loadingDiv = document.createElement('div');
+            loadingDiv.textContent = '読み込み中...';
+            loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#fff;padding:20px;border-radius:10px;z-index:10001;';
+            document.body.appendChild(loadingDiv);
+            
+            // 既存のツールコンテナを削除
+            const oldContainer = document.getElementById('dqx-tool-container');
+            if (oldContainer) oldContainer.remove();
+            
+            // ランチャー画面をクリア（ホーム画面のDOMを削除）
+            const dqxApp = document.getElementById('dqx-app');
+            const homeContainer = dqxApp.querySelector('.home-container');
+            if (homeContainer) homeContainer.remove();
+            
+            fetch(`https://api.github.com/repos/rre1111/dqx-private-api/contents/${filename}`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3.raw'
+                }
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.text();
+            })
+            .then(code => {
+                loadingDiv.remove();
+                const script = document.createElement('script');
+                script.textContent = code;
+                document.head.appendChild(script);
+                
+                if (typeof window[globalName] !== 'undefined' && typeof window[globalName].render === 'function') {
+                    const newContainer = document.createElement('div');
+                    newContainer.id = 'dqx-tool-container';
+                    dqxApp.appendChild(newContainer);
+                    window[globalName].render('#dqx-tool-container');
+                    
+                    if (typeof DQXTools !== 'undefined') {
+                        DQXTools.currentTool = `test-manual-${filename}`;
+                        DQXTools.renderToolMenu();
+                    }
+                } else {
+                    throw new Error(`グローバル ${globalName} が見つからないか、render関数がありません`);
+                }
+            })
+            .catch(err => {
+                loadingDiv.remove();
+                console.error(err);
+                alert(`認証失敗: ${err.message}`);
+                localStorage.removeItem('dqx_test_token');
+                // エラー時はランチャーを再表示
+                if (typeof DQXTools !== 'undefined') {
+                    DQXTools.showLauncher();
+                    setTimeout(addTestCards, 50);
+                }
             });
         }
     </script>
@@ -121,29 +228,30 @@ window.addEventListener('load', function() {
         url: './tools/expmercenary.js',
         renderFn: 'Expmercenary.render'
     });
-　　 DQXTools.register('versions', {
-    　　 name: '傭兵用多機能ツール<br>旧ver',
-    　　 icon: '📜',
-    　　 desc: '旧verセレクタ',
-    　　 url: './tools/version_selector.js',
-    　　 renderFn: 'VersionSelector.render'
-　　 });
-　　  DQXTools.register('test', {
-        name: 'テスト枠',
-        icon: '🔑',
-        desc: '管理者専用',
-        url: './tools/testtool.js',
-        renderFn: 'DQtool.render',
-        password: 'yuffyrre1300'
+    DQXTools.register('versions', {
+        name: '傭兵用多機能ツール<br>旧ver',
+        icon: '📜',
+        desc: '旧verセレクタ',
+        url: './tools/version_selector.js',
+        renderFn: 'VersionSelector.render'
     });
-     DQXTools.register('settings', {
-    　　 name: '設定',
-    　　 icon: '⚙️',
-    　　 desc: 'キャッシュ<br>フィードバック',
-    　　 url: './tools/settings.js',
-    　　 renderFn: 'Settings.render'
-　　 });
+    DQXTools.register('settings', {
+        name: '設定',
+        icon: '⚙️',
+        desc: 'キャッシュ<br>フィードバック',
+        url: './tools/settings.js',
+        renderFn: 'Settings.render'
+    });
+
+    // showLauncher をフックしてカードを再追加
+    const originalShowLauncher = DQXTools.showLauncher.bind(DQXTools);
+    DQXTools.showLauncher = function() {
+        originalShowLauncher();
+        setTimeout(addTestCards, 50);
+    };
+
     DQXTools.init('dqx-app');
+    setTimeout(addTestCards, 100);
 });
 </script>
 </body>
