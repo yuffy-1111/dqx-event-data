@@ -41,6 +41,7 @@
             if (currentIframe) currentIframe.remove();
             const iframe = document.createElement('iframe');
             iframe.src = url;
+            iframe.sandbox = 'allow-same-origin allow-scripts';
             iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
             previewArea.appendChild(iframe);
             currentIframe = iframe;
@@ -117,6 +118,7 @@
             if (currentIframe) currentIframe.remove();
             const iframe = document.createElement('iframe');
             iframe.src = url;
+            iframe.sandbox = 'allow-same-origin allow-scripts';
             iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
             previewArea.appendChild(iframe);
             currentIframe = iframe;
