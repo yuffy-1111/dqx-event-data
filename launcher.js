@@ -1,10 +1,28 @@
 // ==========ツールランチャー（改造版）=========
+// ========== バージョン管理 ==========
+const APP_VERSION = '2.1.0';
+
+// バージョン情報をグローバルに公開（HTML側と整合性チェック用）
+window.LAUNCHER_VERSION = APP_VERSION;
+
+function checkVersionUpdate() {
+    const storedVersion = localStorage.getItem('dqx_app_version');
+    if (storedVersion !== APP_VERSION) {
+        if (storedVersion) {
+            alert(`🎉 アップデート完了！\n\n${storedVersion} → ${APP_VERSION}\n新機能・修正が含まれています。`);
+        } else {
+            alert(`ようこそ！\n\nDQXツール ver.${APP_VERSION}`);
+        }
+        localStorage.setItem('dqx_app_version', APP_VERSION);
+    }
+}
 
 const DQXTools = {
     tools: {},
     currentTool: null,
     container: null,
     darkMode: false,
+    boundResizeHandler: null,  // 追加: リサイズハンドラを保存
 
     // ----- 登録機能（変更なし）-----
     register: function(toolId, toolConfig) {
@@ -15,8 +33,9 @@ const DQXTools = {
         return window.innerWidth <= 768;
     },
 
-    // ----- 初期化（変更なし）-----
+    // ----- 初期化（修正済み）-----
     init: function(containerId) {
+        checkVersionUpdate();
         this.container = document.getElementById(containerId);
         if (!this.container) {
             console.error('コンテナが見つかりません:', containerId);
@@ -26,13 +45,15 @@ const DQXTools = {
         this.applyDarkMode();
         this.showLauncher();
 
-        window.addEventListener('resize', () => {
+        // リサイズハンドラをバインドして保存
+        this.boundResizeHandler = () => {
             if (this.currentTool === null) {
                 this.showLauncher();
             } else {
                 this.renderToolMenu();
             }
-        });
+        };
+        window.addEventListener('resize', this.boundResizeHandler);
     },
 
     // ----- ダークモード（変更なし）-----
@@ -92,7 +113,7 @@ const DQXTools = {
 
         document.querySelectorAll('.tool-card').forEach(card => {
             card.onclick = () => {
-                const toolId = card.dataset.toolId;  // ★修正①: ハイフンなしのcamelCase
+                const toolId = card.dataset.toolId;
                 this.loadTool(toolId);
             };
         });
@@ -133,7 +154,6 @@ const DQXTools = {
             }
         }
 
-        // ★修正②: dataset.toolId（camelCase）に統一
         document.querySelectorAll('.tool-menu-btn').forEach(btn => {
             btn.onclick = () => {
                 const toolId = btn.dataset.toolId;
@@ -146,27 +166,25 @@ const DQXTools = {
         this.addDarkModeButtonToMenu();
     },
 
-// ==================== メニュー内にホーム・ダークモードボタンを追加 ====================
-addDarkModeButtonToMenu: function() {
-    const menuBar = document.getElementById('tool-menu-bar');
-    if (!menuBar) return;
+    // ==================== メニュー内にホーム・ダークモードボタンを追加 ====================
+    addDarkModeButtonToMenu: function() {
+        const menuBar = document.getElementById('tool-menu-bar');
+        if (!menuBar) return;
 
-    // ホームに戻るボタン
-    const homeBtn = document.createElement('button');
-    homeBtn.className = 'tool-menu-btn home-btn';
-    homeBtn.innerHTML = '🏠<span class="menu-btn-label">ホーム</span>';
-    homeBtn.onclick = () => this.goHome();
-    menuBar.appendChild(homeBtn);
+        const homeBtn = document.createElement('button');
+        homeBtn.className = 'tool-menu-btn home-btn';
+        homeBtn.innerHTML = '🏠<span class="menu-btn-label">ホーム</span>';
+        homeBtn.onclick = () => this.goHome();
+        menuBar.appendChild(homeBtn);
 
-    // ダークモードボタン
-    const darkBtn = document.createElement('button');
-    darkBtn.className = 'tool-menu-btn dark-mode-btn';
-    darkBtn.innerHTML = this.darkMode
-        ? '☀️<span class="menu-btn-label">ライト</span>'
-        : '🌙<span class="menu-btn-label">ダーク</span>';
-    darkBtn.onclick = () => this.toggleDarkMode();
-    menuBar.appendChild(darkBtn);
-},
+        const darkBtn = document.createElement('button');
+        darkBtn.className = 'tool-menu-btn dark-mode-btn';
+        darkBtn.innerHTML = this.darkMode
+            ? '☀️<span class="menu-btn-label">ライト</span>'
+            : '🌙<span class="menu-btn-label">ダーク</span>';
+        darkBtn.onclick = () => this.toggleDarkMode();
+        menuBar.appendChild(darkBtn);
+    },
 
     // ==================== ツール読み込み ====================
     loadTool: async function(toolId) {
@@ -174,17 +192,8 @@ addDarkModeButtonToMenu: function() {
         if (!tool) return;
         if (this.currentTool === toolId) return;
 
-        if (tool.password) {
-            const inputPass = prompt(`🔒 「${tool.name}」のパスワードを入力してください:`);
-            if (inputPass !== tool.password) {
-                alert('パスワードが違います。');
-                return;
-            }
-        }
-
         this.destroyCurrentTool();
 
-        // ★修正③: 二重宣言を削除。コンテナを作り直す処理を一本化
         const oldContainer = document.getElementById('dqx-tool-container');
         if (oldContainer) oldContainer.remove();
 
@@ -211,7 +220,6 @@ addDarkModeButtonToMenu: function() {
             top: 0; left: 0;
             width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(4px);
             z-index: 20000;
             display: flex;
             justify-content: center;
@@ -235,10 +243,10 @@ addDarkModeButtonToMenu: function() {
         `;
         document.body.appendChild(loadingDiv);
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
-            const oldScript = document.querySelector(`script[src="${tool.url}"]`);
+            const oldScript = document.querySelector(`script[src*="${tool.url.split('/').pop()}"]`);
             if (oldScript) oldScript.remove();
 
             await this.loadScript(tool.url);
@@ -253,7 +261,6 @@ addDarkModeButtonToMenu: function() {
 
             if (typeof fn === 'function') {
                 this.container.innerHTML = '';
-                // ★修正③続き: container をクリアした後に再度コンテナを作成してからrenderFnに渡す
                 const newToolContainer = document.createElement('div');
                 newToolContainer.id = 'dqx-tool-container';
                 this.container.appendChild(newToolContainer);
@@ -294,7 +301,6 @@ addDarkModeButtonToMenu: function() {
         this.showLauncher();
     },
 
-    // ★修正④: destroyCurrentTool のツールID を index.html の登録名に合わせる
     destroyCurrentTool: function() {
         if (this.currentTool) {
             const tool = this.tools[this.currentTool];
@@ -307,18 +313,32 @@ addDarkModeButtonToMenu: function() {
         }
     },
 
+    // ==================== ランチャー自身の破棄（追加） ====================
+    destroy: function() {
+        if (this.boundResizeHandler) {
+            window.removeEventListener('resize', this.boundResizeHandler);
+            this.boundResizeHandler = null;
+        }
+    },
+
     loadScript: function(url) {
+        const cacheBustUrl = url + '?v=' + APP_VERSION;
         return new Promise((resolve, reject) => {
-            const existing = document.querySelector(`script[src="${url}"]`);
+            const existing = document.querySelector(`script[src="${cacheBustUrl}"]`);
             if (existing) {
                 resolve();
                 return;
             }
             const script = document.createElement('script');
-            script.src = url;
+            script.src = cacheBustUrl;
             script.onload  = () => resolve();
             script.onerror = () => reject(new Error(`Script load failed: ${url}`));
             document.head.appendChild(script);
         });
     }
 };
+
+// 外部から destroy を呼べるように公開
+if (typeof window.DQXTools === 'undefined') {
+    window.DQXTools = DQXTools;
+}
