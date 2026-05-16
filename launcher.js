@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.1.6';
+const APP_VERSION = '2.1.7';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -123,7 +123,10 @@ const DQXTools = {
     renderToolMenu: function() {
         const isMobile = this.isMobile();
 
-        const menuButtons = Object.entries(this.tools).map(([id, tool]) => {
+        // hideInMenu が true のツールは除外
+        const menuEntries = Object.entries(this.tools).filter(([id, tool]) => !tool.hideInMenu);
+
+        const menuButtons = menuEntries.map(([id, tool]) => {
             const icon = tool.icon || '🔧';
             const name = tool.name;
             const isActive = (this.currentTool === id);
