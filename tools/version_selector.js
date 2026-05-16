@@ -3,7 +3,7 @@
     const VERSIONS = [
         { version: 'v1.5.5', date: '2026-05-12', url: './old_tools/ver155.html', desc: 'はてなブログ版' },
         { version: 'v1.4.5', date: '2026-04-xx', url: './old_tools/ver145.html', desc: '' },
-        { version: 'v1.4.1', date: '2026-04-xx', url: './old_tools/ver141.html', desc: 'ウェブフック版' },
+        { version: 'v1.4.1', date: '2026-04-xx', url: './old_tools/ver141.html', desc: 'ｳｪﾌﾞﾌｯｸ版(連携撤廃)' },
         { version: 'v1.3.0', date: '2026-03-xx', url: './old_tools/ver130.html', desc: '' },
         { version: 'v1.2.6', date: '2026-03-xx', url: './old_tools/ver126.html', desc: 'Blue Edition' },
         { version: 'v1.1.7', date: '2026-02-xx', url: './old_tools/ver117.html', desc: '' }
