@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.7';
+        const HTML_VERSION = '2.1.8';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -117,70 +117,6 @@
             { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Webhook', icon: '📤' },
             { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
         ];
-
-        // テストツール読み込み関数
-        function handleTestToolClick(filename, globalName, toolName) {
-            const savedToken = localStorage.getItem('dqx_test_token');
-            let token = savedToken;
-            
-            if (!token) {
-                token = prompt(`🔑 ${toolName}を使用するためのGitHub APIトークンを入力してください（開発者専用）`);
-                if (!token) return;
-                localStorage.setItem('dqx_test_token', token);
-            }
-            
-            const loadingDiv = document.createElement('div');
-            loadingDiv.textContent = '読み込み中...';
-            loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#fff;padding:20px;border-radius:10px;z-index:10001;';
-            document.body.appendChild(loadingDiv);
-            
-            const oldContainer = document.getElementById('dqx-tool-container');
-            if (oldContainer) oldContainer.remove();
-            
-            const dqxApp = document.getElementById('dqx-app');
-            const homeContainer = dqxApp.querySelector('.home-container');
-            if (homeContainer) homeContainer.remove();
-            
-            fetch(`https://api.github.com/repos/rre1111/dqx-private-api/contents/${filename}`, {
-                headers: {
-                    'Authorization': `token ${token}`,
-                    'Accept': 'application/vnd.github.v3.raw'
-                }
-            })
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.text();
-            })
-            .then(code => {
-                loadingDiv.remove();
-                const script = document.createElement('script');
-                script.textContent = code;
-                document.head.appendChild(script);
-                
-                if (typeof window[globalName] !== 'undefined' && typeof window[globalName].render === 'function') {
-                    const newContainer = document.createElement('div');
-                    newContainer.id = 'dqx-tool-container';
-                    dqxApp.appendChild(newContainer);
-                    window[globalName].render('#dqx-tool-container');
-                    
-                    if (typeof DQXTools !== 'undefined') {
-                        DQXTools.currentTool = `test-${filename}`;
-                        DQXTools.renderToolMenu();
-                    }
-                } else {
-                    throw new Error(`グローバル ${globalName} が見つかりません`);
-                }
-            })
-            .catch(err => {
-                loadingDiv.remove();
-                console.error(err);
-                alert(`認証失敗: ${err.message}`);
-                localStorage.removeItem('dqx_test_token');
-                if (typeof DQXTools !== 'undefined') {
-                    DQXTools.showLauncher();
-                }
-            });
-        }
     </script>
 </head>
 <body>
@@ -226,27 +162,15 @@ window.addEventListener('load', function() {
             desc: 'API認証',
             url: '',
             renderFn: '',
-            hideInMenu: true
+            hideInMenu: true,
+            testToolConfig: {
+                filename: tool.file,
+                globalName: tool.globalName
+            }
         });
     });
 
     DQXTools.init('dqx-app');
-
-    // テストカードのクリック処理を上書き（loadToolをバイパス）
-    setTimeout(() => {
-        TEST_TOOLS.forEach(tool => {
-            const card = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
-            if (card) {
-                // 元のonclickを保存
-                const originalOnclick = card.onclick;
-                // 上書き
-                card.onclick = (e) => {
-                    e.stopPropagation();
-                    handleTestToolClick(tool.file, tool.globalName, tool.name);
-                };
-            }
-        });
-    }, 100);
 });
 </script>
 </body>
