@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.2';
+        const HTML_VERSION = '2.2.2';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -113,12 +113,12 @@
 
         // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
         const TEST_TOOLS = [
-            { file: 'testtool.js', globalName: 'DQtool', name: '構成保存(test)', icon: '📊' },
-            { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Wh(test)', icon: '📤' },
-            { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール(test)', icon: '🛠️' }
+            { file: 'testtool.js', globalName: 'DQtool', name: '構成保存', icon: '📊' },
+            { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Webhook', icon: '📤' },
+            { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
         ];
 
-        // テストツール読み込み関数（共通）
+        // テストツール読み込み関数
         function handleTestToolClick(filename, globalName, toolName) {
             const savedToken = localStorage.getItem('dqx_test_token');
             let token = savedToken;
@@ -134,11 +134,9 @@
             loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#fff;padding:20px;border-radius:10px;z-index:10001;';
             document.body.appendChild(loadingDiv);
             
-            // 既存のツールコンテナを削除
             const oldContainer = document.getElementById('dqx-tool-container');
             if (oldContainer) oldContainer.remove();
             
-            // ランチャー画面をクリア（ホーム画面のDOMを削除）
             const dqxApp = document.getElementById('dqx-app');
             const homeContainer = dqxApp.querySelector('.home-container');
             if (homeContainer) homeContainer.remove();
@@ -170,7 +168,7 @@
                         DQXTools.renderToolMenu();
                     }
                 } else {
-                    throw new Error(`グローバル ${globalName} が見つからないか、render関数がありません`);
+                    throw new Error(`グローバル ${globalName} が見つかりません`);
                 }
             })
             .catch(err => {
@@ -178,7 +176,6 @@
                 console.error(err);
                 alert(`認証失敗: ${err.message}`);
                 localStorage.removeItem('dqx_test_token');
-                // エラー時はランチャーを再表示
                 if (typeof DQXTools !== 'undefined') {
                     DQXTools.showLauncher();
                 }
@@ -221,27 +218,27 @@ window.addEventListener('load', function() {
         renderFn: 'Settings.render'
     });
 
-    // テストツールをダミー登録（カードを最初から表示させる）
-    TEST_TOOLS.forEach(tool => {
-        DQXTools.register(`test_${tool.file}`, {
-            name: `${tool.name} 🔒`,
-            icon: tool.icon,
-            desc: 'API認証',
-            url: '',
-            renderFn: ''
-        });
-    });
-
     DQXTools.init('dqx-app');
 
-    // 各テストカードのクリック処理を上書き（通常のloadToolではなく直接呼び出す）
+    // テストカードを手動追加（ツールバーには表示されない）
     setTimeout(() => {
-        TEST_TOOLS.forEach(tool => {
-            const testCard = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
-            if (testCard) {
-                testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
-            }
-        });
+        const homeGrid = document.querySelector('.home-grid');
+        if (homeGrid) {
+            TEST_TOOLS.forEach((tool, idx) => {
+                const cardClass = `test-card-${idx}`;
+                if (!document.querySelector(`.${cardClass}`)) {
+                    const card = document.createElement('div');
+                    card.className = `tool-card ${cardClass}`;
+                    card.innerHTML = `
+                        <div class="tool-card-icon">${tool.icon}</div>
+                        <div class="tool-card-name">${tool.name} 🔒</div>
+                        <div class="tool-card-desc">API認証</div>
+                    `;
+                    card.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
+                    homeGrid.appendChild(card);
+                }
+            });
+        }
     }, 100);
 });
 </script>
