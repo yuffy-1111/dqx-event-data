@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.9';
+        const HTML_VERSION = '2.2.0';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -87,8 +87,8 @@
         });
 
         const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
-        const START_DATE = new Date('2026-05-15T23:50:00');
-        const END_DATE   = new Date('2026-05-16T00:50:00');
+        const START_DATE = new Date('2026-05-16T15:30:00');
+        const END_DATE   = new Date('2026-05-16T16:00:00');
         const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
 
         if (MAINTENANCE_MODE && !skipMaintenance) {
@@ -106,7 +106,7 @@
                     flex-direction: column;
                     font-family: sans-serif;
                 `;
-                overlay.innerHTML = `<div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">メンテナンス中<br>23:50〜00:50</div>`;
+                overlay.innerHTML = `<div style="background: #223a70; padding: 30px 60px; border-radius: 20px; color: white; font-size: 2rem; font-weight: bold;">メンテナンス中<br>15:30〜16:00</div>`;
                 document.body.appendChild(overlay);
             });
         }
