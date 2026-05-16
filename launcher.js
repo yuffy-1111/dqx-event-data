@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.1.7';
+const APP_VERSION = '2.1.8';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -24,7 +24,6 @@ const DQXTools = {
     darkMode: false,
     boundResizeHandler: null,
 
-    // ----- 登録機能（変更なし）-----
     register: function(toolId, toolConfig) {
         this.tools[toolId] = toolConfig;
     },
@@ -33,7 +32,6 @@ const DQXTools = {
         return window.innerWidth <= 768;
     },
 
-    // ----- 初期化（修正済み）-----
     init: function(containerId) {
         checkVersionUpdate();
         this.container = document.getElementById(containerId);
@@ -45,7 +43,6 @@ const DQXTools = {
         this.applyDarkMode();
         this.showLauncher();
 
-        // リサイズハンドラをバインドして保存
         this.boundResizeHandler = () => {
             if (this.currentTool === null) {
                 this.showLauncher();
@@ -56,7 +53,6 @@ const DQXTools = {
         window.addEventListener('resize', this.boundResizeHandler);
     },
 
-    // ----- ダークモード（変更なし）-----
     applyDarkMode: function() {
         document.body.classList.toggle('dark-mode', this.darkMode);
         const btn = document.getElementById('global-dark-toggle');
@@ -76,7 +72,6 @@ const DQXTools = {
         }
     },
 
-    // ==================== ホーム画面（カードグリッド） ====================
     showLauncher: function() {
         const cardButtons = Object.entries(this.tools).map(([id, tool]) => {
             const icon = tool.icon || '🔧';
@@ -119,7 +114,6 @@ const DQXTools = {
         });
     },
 
-    // ==================== ツール画面のメニュー（PC:右サイドバー / スマホ:下部） ====================
     renderToolMenu: function() {
         const isMobile = this.isMobile();
 
@@ -188,11 +182,74 @@ const DQXTools = {
         menuBar.appendChild(darkBtn);
     },
 
-    // ==================== ツール読み込み ====================
+    // テストツール読み込み用の共通関数
+    loadTestTool: async function(toolId, tool) {
+        const config = tool.testToolConfig;
+        if (!config) return false;
+        
+        let token = localStorage.getItem('dqx_test_token');
+        if (!token) {
+            token = prompt(`🔑 ${tool.name}を使用するためのGitHub APIトークンを入力してください（開発者専用）`);
+            if (!token) return false;
+            localStorage.setItem('dqx_test_token', token);
+        }
+        
+        const loadingDiv = document.createElement('div');
+        loadingDiv.textContent = '読み込み中...';
+        loadingDiv.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#fff;padding:20px;border-radius:10px;z-index:10001;';
+        document.body.appendChild(loadingDiv);
+        
+        try {
+            const res = await fetch(`https://api.github.com/repos/rre1111/dqx-private-api/contents/${config.filename}`, {
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3.raw'
+                }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const code = await res.text();
+            
+            const script = document.createElement('script');
+            script.textContent = code;
+            document.head.appendChild(script);
+            
+            loadingDiv.remove();
+            
+            if (typeof window[config.globalName] !== 'undefined' && typeof window[config.globalName].render === 'function') {
+                this.container.innerHTML = '';
+                const newContainer = document.createElement('div');
+                newContainer.id = 'dqx-tool-container';
+                this.container.appendChild(newContainer);
+                window[config.globalName].render('#dqx-tool-container');
+                this.currentTool = toolId;
+                this.renderToolMenu();
+                return true;
+            } else {
+                throw new Error('ツール読み込み失敗');
+            }
+        } catch(e) {
+            loadingDiv.remove();
+            console.error(e);
+            alert(`認証失敗: ${e.message}`);
+            localStorage.removeItem('dqx_test_token');
+            this.goHome();
+            return false;
+        }
+    },
+
     loadTool: async function(toolId) {
         const tool = this.tools[toolId];
         if (!tool) return;
         if (this.currentTool === toolId) return;
+
+        // テストツール（hideInMenu + testToolConfig）は特別処理
+        if (tool.hideInMenu && tool.testToolConfig) {
+            this.destroyCurrentTool();
+            const oldContainer = document.getElementById('dqx-tool-container');
+            if (oldContainer) oldContainer.remove();
+            await this.loadTestTool(toolId, tool);
+            return;
+        }
 
         this.destroyCurrentTool();
 
@@ -281,7 +338,6 @@ const DQXTools = {
         }
     },
 
-    // ==================== ホームに戻る ====================
     goHome: function() {
         this.destroyCurrentTool();
 
@@ -295,7 +351,6 @@ const DQXTools = {
         newContainer.id = 'dqx-tool-container';
         this.container.appendChild(newContainer);
 
-        // 修正: 全ての testtool 関連スクリプトを削除
         const scripts = document.querySelectorAll('script[src*="testtool"]');
         scripts.forEach(script => script.remove());
 
@@ -304,7 +359,6 @@ const DQXTools = {
     },
 
     destroyCurrentTool: function() {
-        // まず通常のツールを破棄
         if (this.currentTool) {
             const tool = this.tools[this.currentTool];
             if (tool) {
@@ -315,7 +369,6 @@ const DQXTools = {
             }
         }
         
-        // 追加: 手動で追加したテストツール（DQtool, DQtool2, DQtool3 など）も破棄
         const possibleGlobalNames = ['DQtool', 'DQtool2', 'DQtool3', 'Tool4'];
         possibleGlobalNames.forEach(globalName => {
             if (window[globalName] && typeof window[globalName].destroy === 'function') {
