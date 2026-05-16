@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.1';
+        const HTML_VERSION = '2.2.0';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -113,32 +113,10 @@
 
         // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
         const TEST_TOOLS = [
-            { file: 'testtool.js', globalName: 'DQtool', name: 'テスト枠1', icon: '📊' },
-            { file: 'testtool2.js', globalName: 'DQtool2', name: 'テスト枠2', icon: '📤' },
-            { file: 'testtool3.js', globalName: 'DQtool3', name: 'テスト枠3', icon: '🛠️' }
+            { file: 'testtool.js', globalName: 'DQtool', name: '構成保存(test)', icon: '📊' },
+            { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Wh(test)', icon: '📤' },
+            { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール(test)', icon: '🛠️' }
         ];
-
-        // テストカードを追加する関数
-        function addTestCards() {
-            const homeGrid = document.querySelector('.home-grid');
-            if (!homeGrid) return;
-            
-            TEST_TOOLS.forEach((tool, index) => {
-                const cardClass = `test-manual-card-${index}`;
-                if (!document.querySelector(`.${cardClass}`)) {
-                    const testCard = document.createElement('div');
-                    testCard.className = `tool-card ${cardClass}`;
-                    testCard.setAttribute('data-tool-id', `test-manual-${index}`);
-                    testCard.innerHTML = `
-                        <div class="tool-card-icon">${tool.icon}</div>
-                        <div class="tool-card-name">${tool.name} 🔒</div>
-                        <div class="tool-card-desc">API認証</div>
-                    `;
-                    testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
-                    homeGrid.appendChild(testCard);
-                }
-            });
-        }
 
         // テストツール読み込み関数（共通）
         function handleTestToolClick(filename, globalName, toolName) {
@@ -188,7 +166,7 @@
                     window[globalName].render('#dqx-tool-container');
                     
                     if (typeof DQXTools !== 'undefined') {
-                        DQXTools.currentTool = `test-manual-${filename}`;
+                        DQXTools.currentTool = `test-${filename}`;
                         DQXTools.renderToolMenu();
                     }
                 } else {
@@ -203,7 +181,6 @@
                 // エラー時はランチャーを再表示
                 if (typeof DQXTools !== 'undefined') {
                     DQXTools.showLauncher();
-                    setTimeout(addTestCards, 50);
                 }
             });
         }
@@ -214,6 +191,7 @@
 <script src="./launcher.js"></script>
 <script>
 window.addEventListener('load', function() {
+    // 通常ツールの登録
     DQXTools.register('Checker', {
         name: 'コンテンツ<br>チェッカー',
         icon: '📋',
@@ -243,15 +221,28 @@ window.addEventListener('load', function() {
         renderFn: 'Settings.render'
     });
 
-    // showLauncher をフックしてカードを再追加
-    const originalShowLauncher = DQXTools.showLauncher.bind(DQXTools);
-    DQXTools.showLauncher = function() {
-        originalShowLauncher();
-        setTimeout(addTestCards, 50);
-    };
+    // テストツールをダミー登録（カードを最初から表示させる）
+    TEST_TOOLS.forEach(tool => {
+        DQXTools.register(`test_${tool.file}`, {
+            name: `${tool.name} 🔒`,
+            icon: tool.icon,
+            desc: 'API認証',
+            url: '',
+            renderFn: ''
+        });
+    });
 
     DQXTools.init('dqx-app');
-    setTimeout(addTestCards, 100);
+
+    // 各テストカードのクリック処理を上書き（通常のloadToolではなく直接呼び出す）
+    setTimeout(() => {
+        TEST_TOOLS.forEach(tool => {
+            const testCard = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
+            if (testCard) {
+                testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
+            }
+        });
+    }, 100);
 });
 </script>
 </body>
