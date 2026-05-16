@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.4';
+        const HTML_VERSION = '2.1.5';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -117,27 +117,6 @@
             { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Webhook', icon: '📤' },
             { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
         ];
-
-        // テストカードを追加する関数
-        function addTestCards() {
-            const homeGrid = document.querySelector('.home-grid');
-            if (!homeGrid) return;
-            
-            TEST_TOOLS.forEach((tool, idx) => {
-                const cardClass = `test-card-${idx}`;
-                if (!document.querySelector(`.${cardClass}`)) {
-                    const card = document.createElement('div');
-                    card.className = `tool-card ${cardClass}`;
-                    card.innerHTML = `
-                        <div class="tool-card-icon">${tool.icon}</div>
-                        <div class="tool-card-name">${tool.name} 🔒</div>
-                        <div class="tool-card-desc">API認証</div>
-                    `;
-                    card.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
-                    homeGrid.appendChild(card);
-                }
-            });
-        }
 
         // テストツール読み込み関数
         function handleTestToolClick(filename, globalName, toolName) {
@@ -199,7 +178,6 @@
                 localStorage.removeItem('dqx_test_token');
                 if (typeof DQXTools !== 'undefined') {
                     DQXTools.showLauncher();
-                    setTimeout(addTestCards, 50);
                 }
             });
         }
@@ -240,15 +218,29 @@ window.addEventListener('load', function() {
         renderFn: 'Settings.render'
     });
 
-    // showLauncher をフックしてカードを再追加
-    const originalShowLauncher = DQXTools.showLauncher.bind(DQXTools);
-    DQXTools.showLauncher = function() {
-        originalShowLauncher();
-        setTimeout(addTestCards, 50);
-    };
+    // テストツールをダミー登録（カードを最初から表示、ツールバーには非表示）
+    TEST_TOOLS.forEach(tool => {
+        DQXTools.register(`test_${tool.file}`, {
+            name: `${tool.name} 🔒`,
+            icon: tool.icon,
+            desc: 'API認証',
+            url: '',
+            renderFn: '',
+            hideInMenu: true
+        });
+    });
 
     DQXTools.init('dqx-app');
-    setTimeout(addTestCards, 100);
+
+    // 各テストカードのクリック処理を上書き
+    setTimeout(() => {
+        TEST_TOOLS.forEach(tool => {
+            const testCard = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
+            if (testCard) {
+                testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
+            }
+        });
+    }, 100);
 });
 </script>
 </body>
