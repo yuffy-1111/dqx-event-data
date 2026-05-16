@@ -88,7 +88,7 @@
 
         const skipMaintenance = localStorage.getItem('dqx_dev_mode') === 'true';
         const START_DATE = new Date('2026-05-16T15:30:00');
-        const END_DATE   = new Date('2026-05-16T16:00:00');
+        const END_DATE   = new Date('2026-05-16T15:40:00');
         const MAINTENANCE_MODE = (new Date() >= START_DATE && new Date() <= END_DATE);
 
         if (MAINTENANCE_MODE && !skipMaintenance) {
