@@ -71,7 +71,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.1.5';
+        const HTML_VERSION = '2.1.6';
         window.addEventListener('load', function() {
             setTimeout(function() {
                 if (typeof window.LAUNCHER_VERSION !== 'undefined') {
@@ -218,7 +218,7 @@ window.addEventListener('load', function() {
         renderFn: 'Settings.render'
     });
 
-    // テストツールをダミー登録（カードを最初から表示、ツールバーには非表示）
+    // テストツールをダミー登録（カード表示用、ツールバー非表示）
     TEST_TOOLS.forEach(tool => {
         DQXTools.register(`test_${tool.file}`, {
             name: `${tool.name} 🔒`,
@@ -232,12 +232,18 @@ window.addEventListener('load', function() {
 
     DQXTools.init('dqx-app');
 
-    // 各テストカードのクリック処理を上書き
+    // テストカードのクリック処理を上書き（loadToolをバイパス）
     setTimeout(() => {
         TEST_TOOLS.forEach(tool => {
-            const testCard = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
-            if (testCard) {
-                testCard.onclick = () => handleTestToolClick(tool.file, tool.globalName, tool.name);
+            const card = document.querySelector(`.tool-card[data-tool-id="test_${tool.file}"]`);
+            if (card) {
+                // 元のonclickを保存
+                const originalOnclick = card.onclick;
+                // 上書き
+                card.onclick = (e) => {
+                    e.stopPropagation();
+                    handleTestToolClick(tool.file, tool.globalName, tool.name);
+                };
             }
         });
     }, 100);
