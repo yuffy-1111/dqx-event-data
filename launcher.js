@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.1.9';
+const APP_VERSION = '2.2.0';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -115,97 +115,85 @@ const DQXTools = {
     },
 
     renderToolMenu: function() {
-    const isMobile = this.isMobile();
+        const isMobile = this.isMobile();
 
-    // hideInMenu が true のツールは除外
-    const menuEntries = Object.entries(this.tools).filter(([id, tool]) => !tool.hideInMenu);
+        // hideInMenu が true のツールは除外
+        const menuEntries = Object.entries(this.tools).filter(([id, tool]) => !tool.hideInMenu);
 
-    const menuButtons = menuEntries.map(([id, tool]) => {
-        const icon = tool.icon || '🔧';
-        const name = tool.name;
-        const isActive = (this.currentTool === id);
-        return `
-            <button class="tool-menu-btn ${isActive ? 'active' : ''}" data-tool-id="${id}">
-                ${icon}<span class="menu-btn-label">${name}</span>
-            </button>
-        `;
-    }).join('');
+        const menuButtons = menuEntries.map(([id, tool]) => {
+            const icon = tool.icon || '🔧';
+            const name = tool.name;
+            const isActive = (this.currentTool === id);
+            return `
+                <button class="tool-menu-btn ${isActive ? 'active' : ''}" data-tool-id="${id}">
+                    ${icon}<span class="menu-btn-label">${name}</span>
+                </button>
+            `;
+        }).join('');
 
-    const oldBar = document.getElementById('tool-menu-bar');
-    if (oldBar) oldBar.remove();
+        const oldBar = document.getElementById('tool-menu-bar');
+        if (oldBar) oldBar.remove();
 
-    const menuBar = document.createElement('div');
-    menuBar.id = 'tool-menu-bar';
-    
-    if (isMobile) {
-        // スマホ：左スクロール＋右固定レイアウト
-        menuBar.className = 'tool-menu-bottom';
-        menuBar.innerHTML = `
-            <div class="tool-menu-scroll">
-                ${menuButtons}
-            </div>
-            <div class="tool-menu-fixed">
-                <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
-                <button class="tool-menu-btn dark-mode-btn" data-action="dark">${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span></button>
-            </div>
-        `;
+        const menuBar = document.createElement('div');
+        menuBar.id = 'tool-menu-bar';
         
-        // イベント設定
-        const homeBtn = menuBar.querySelector('[data-action="home"]');
-        if (homeBtn) homeBtn.onclick = () => this.goHome();
-        
-        const darkBtn = menuBar.querySelector('[data-action="dark"]');
-        if (darkBtn) darkBtn.onclick = () => this.toggleDarkMode();
-        
-        menuBar.querySelectorAll('.tool-menu-scroll .tool-menu-btn').forEach(btn => {
-            btn.onclick = () => {
-                const toolId = btn.dataset.toolId;
-                if (toolId && this.currentTool !== toolId) {
-                    this.loadTool(toolId);
-                }
-            };
-        });
-    } else {
-        // PC：従来のサイドバー
-        menuBar.className = 'tool-menu-sidebar';
-        menuBar.innerHTML = menuButtons;
-        document.body.appendChild(menuBar);
-        
-        document.querySelectorAll('.tool-menu-sidebar .tool-menu-btn').forEach(btn => {
-            btn.onclick = () => {
-                const toolId = btn.dataset.toolId;
-                if (toolId && this.currentTool !== toolId) {
-                    this.loadTool(toolId);
-                }
-            };
-        });
-        this.addDarkModeButtonToMenu();
-    }
-    
-    document.body.appendChild(menuBar);
-
-    const toolContainer = document.getElementById('dqx-tool-container');
-    if (toolContainer) {
         if (isMobile) {
-            toolContainer.style.paddingBottom = '70px';
-            toolContainer.style.paddingRight = '0';
+            // スマホ：左スクロール＋右固定レイアウト
+            menuBar.className = 'tool-menu-bottom';
+            menuBar.innerHTML = `
+                <div class="tool-menu-scroll">
+                    ${menuButtons}
+                </div>
+                <div class="tool-menu-fixed">
+                    <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
+                    <button class="tool-menu-btn dark-mode-btn" data-action="dark">${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span></button>
+                </div>
+            `;
+            
+            // イベント設定
+            const homeBtn = menuBar.querySelector('[data-action="home"]');
+            if (homeBtn) homeBtn.onclick = () => this.goHome();
+            
+            const darkBtn = menuBar.querySelector('[data-action="dark"]');
+            if (darkBtn) darkBtn.onclick = () => this.toggleDarkMode();
+            
+            menuBar.querySelectorAll('.tool-menu-scroll .tool-menu-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const toolId = btn.dataset.toolId;
+                    if (toolId && this.currentTool !== toolId) {
+                        this.loadTool(toolId);
+                    }
+                };
+            });
         } else {
-            toolContainer.style.paddingBottom = '0';
-            toolContainer.style.paddingRight = '80px';
+            // PC：従来のサイドバー
+            menuBar.className = 'tool-menu-sidebar';
+            menuBar.innerHTML = menuButtons;
+            document.body.appendChild(menuBar);
+            
+            document.querySelectorAll('.tool-menu-sidebar .tool-menu-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const toolId = btn.dataset.toolId;
+                    if (toolId && this.currentTool !== toolId) {
+                        this.loadTool(toolId);
+                    }
+                };
+            });
+            this.addDarkModeButtonToMenu();
         }
-    }
-},
+        
+        document.body.appendChild(menuBar);
 
-        document.querySelectorAll('.tool-menu-btn').forEach(btn => {
-            btn.onclick = () => {
-                const toolId = btn.dataset.toolId;
-                if (toolId && this.currentTool !== toolId) {
-                    this.loadTool(toolId);
-                }
-            };
-        });
-
-        this.addDarkModeButtonToMenu();
+        const toolContainer = document.getElementById('dqx-tool-container');
+        if (toolContainer) {
+            if (isMobile) {
+                toolContainer.style.paddingBottom = '70px';
+                toolContainer.style.paddingRight = '0';
+            } else {
+                toolContainer.style.paddingBottom = '0';
+                toolContainer.style.paddingRight = '80px';
+            }
+        }
     },
 
     addDarkModeButtonToMenu: function() {
