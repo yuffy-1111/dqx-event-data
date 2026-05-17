@@ -5,24 +5,10 @@
             const container = document.querySelector(containerSelector);
             if (!container) return;
 
-            // 現在の強制デスクトップモード状態を取得
-            const isForceDesktop = localStorage.getItem('dqx_force_desktop') === 'true';
-
             container.innerHTML = `
                 <div class="settings-container">
                     <h2>⚙️ 設定</h2>
                     
-                    <div class="settings-card">
-                        <h3>📱 表示モード</h3>
-                        <div class="button-group">
-                            <button id="forceDesktopBtn" class="btn-warning" style="${isForceDesktop ? 'opacity:0.6;' : ''}">🖥️ デスクトップモード強制</button>
-                            <button id="resetMobileBtn" class="btn-info" style="${!isForceDesktop ? 'opacity:0.6;' : ''}">📱 モバイルモードに戻す</button>
-                        </div>
-                        <p class="settings-note">
-                            ※ タブレット横画面でレイアウトが崩れる場合、デスクトップモードをお試しください。
-                        </p>
-                    </div>
-
                     <div class="settings-card">
                         <h3>🗑️ データ管理</h3>
                         <div class="button-group">
@@ -265,7 +251,7 @@
                 };
             }
 
-            // テストツールトークン削除
+            // テストツールトークン削除（追加）
             const tokenBtn = document.getElementById('clearTestToken');
             if (tokenBtn) {
                 tokenBtn.onclick = () => {
@@ -273,28 +259,6 @@
                         localStorage.removeItem('dqx_test_token');
                         alert('✅ 認証トークンを削除しました');
                         updateStorageInfo();
-                    }
-                };
-            }
-
-            // デスクトップモード強制
-            const forceDesktopBtn = document.getElementById('forceDesktopBtn');
-            if (forceDesktopBtn) {
-                forceDesktopBtn.onclick = () => {
-                    if (confirm('デスクトップモードに切り替えます。再読み込みします。')) {
-                        localStorage.setItem('dqx_force_desktop', 'true');
-                        location.reload();
-                    }
-                };
-            }
-
-            // モバイルモードに戻す
-            const resetMobileBtn = document.getElementById('resetMobileBtn');
-            if (resetMobileBtn) {
-                resetMobileBtn.onclick = () => {
-                    if (confirm('モバイルモードに戻します。再読み込みします。')) {
-                        localStorage.removeItem('dqx_force_desktop');
-                        location.reload();
                     }
                 };
             }
