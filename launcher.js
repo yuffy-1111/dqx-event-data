@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.2.6';
+const APP_VERSION = '2.2.7';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -23,6 +23,7 @@ const DQXTools = {
     container: null,
     darkMode: false,
     boundResizeHandler: null,
+    sortableInstance: null,  // SortableJSインスタンスを保存
 
     register: function(toolId, toolConfig) {
         this.tools[toolId] = toolConfig;
@@ -73,7 +74,24 @@ const DQXTools = {
     },
 
     showLauncher: function() {
-        const cardButtons = Object.entries(this.tools).map(([id, tool]) => {
+        // 保存された順序を読み込み
+        const savedOrder = localStorage.getItem('dqx_card_order');
+        const order = savedOrder ? JSON.parse(savedOrder) : null;
+        
+        // ツールを順序に従ってソート
+        let toolEntries = Object.entries(this.tools);
+        if (order) {
+            toolEntries.sort((a, b) => {
+                const aIdx = order.indexOf(a[0]);
+                const bIdx = order.indexOf(b[0]);
+                if (aIdx === -1 && bIdx === -1) return 0;
+                if (aIdx === -1) return 1;
+                if (bIdx === -1) return -1;
+                return aIdx - bIdx;
+            });
+        }
+        
+        const cardButtons = toolEntries.map(([id, tool]) => {
             const icon = tool.icon || '🔧';
             const name = tool.name;
             const desc = tool.desc || '';
@@ -106,12 +124,28 @@ const DQXTools = {
             toggleBtn.onclick = () => this.toggleDarkMode();
         }
 
+        // カードクリックイベント
         document.querySelectorAll('.tool-card').forEach(card => {
             card.onclick = () => {
                 const toolId = card.dataset.toolId;
                 this.loadTool(toolId);
             };
         });
+        
+        // SortableJS を初期化（ドラッグ＆ドロップ）
+        const homeGrid = this.container.querySelector('.home-grid');
+        if (homeGrid && typeof Sortable !== 'undefined') {
+            if (this.sortableInstance) {
+                this.sortableInstance.destroy();
+            }
+            this.sortableInstance = new Sortable(homeGrid, {
+                animation: 150,
+                onEnd: () => {
+                    const newOrder = [...homeGrid.children].map(card => card.dataset.toolId);
+                    localStorage.setItem('dqx_card_order', JSON.stringify(newOrder));
+                }
+            });
+        }
     },
 
     renderToolMenu: function() {
@@ -411,6 +445,10 @@ const DQXTools = {
     },
 
     destroy: function() {
+        if (this.sortableInstance) {
+            this.sortableInstance.destroy();
+            this.sortableInstance = null;
+        }
         if (this.boundResizeHandler) {
             window.removeEventListener('resize', this.boundResizeHandler);
             this.boundResizeHandler = null;
