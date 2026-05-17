@@ -9,7 +9,7 @@ function checkVersionUpdate() {
     const storedVersion = localStorage.getItem('dqx_app_version');
     if (storedVersion !== APP_VERSION) {
         if (storedVersion) {
-            alert(`🎉 アップデート完了！\n\n${storedVersion} → ${APP_VERSION}\n新機能・修正が含まれています。`);
+            alert(`アップデートされました！\n\n${storedVersion} → ${APP_VERSION}\n新機能・修正が含まれています。`);
         } else {
             alert(`ようこそ！\n\nDQXツール ver.${APP_VERSION}`);
         }
@@ -96,7 +96,7 @@ const DQXTools = {
                     ${cardButtons}
                 </div>
                 <div class="home-footer">
-                    © yuffy-1111
+                    © 2026 yuffy_rre
                 </div>
             </div>
         `;
