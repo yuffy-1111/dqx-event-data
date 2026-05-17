@@ -15,6 +15,13 @@
       "endDateTime": "2026-05-14T05:59:00+09:00"
     },
     {
+      "id": "7gift",
+      "name": "ver7ウェルカムギフト",
+      "resetType": "daily",
+      "startDateTime": "2026-05-13T06:00:00+09:00",
+      "endDateTime": "2026-06-24T23:59:00+09:00"
+    },
+    {
       "id": "re_ffⅹⅳ",
       "name": "お花大好きクポ！",
       "resetType": "once",
