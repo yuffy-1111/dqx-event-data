@@ -91,7 +91,7 @@
                         } else {
                             // 上限に達したので旧バージョンで継続
                             sessionStorage.removeItem(RELOAD_KEY);
-                            alert(`バージョン情報が一致しません。旧verのツールを読み込みます。\nページを手動で再読み込みすると更新される可能性があります。`);
+                            alert(`バージョンが一致しません。旧バージョンのツールを読み込みます。\n少し時間をおいて再読み込みしてください。`);
                             console.warn(`Version mismatch: LAUNCHER=${window.LAUNCHER_VERSION}, HTML=${HTML_VERSION} - 上限に達したため継続`);
                         }
                     } else {
