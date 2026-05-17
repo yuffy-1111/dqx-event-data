@@ -13,7 +13,7 @@
                         <h3>🗑️ データ管理</h3>
                         <div class="button-group">
                             <button id="clearAllCache" class="btn-danger">全キャッシュを削除</button>
-                            <button id="clearCheckerCache" class="btn-warning">チェックデータのみ削除</button>
+                            <button id="clearCheckerCache" class="btn-warning">チェックデータ削除</button>
                             <button id="clearTestToken" class="btn-info">認証トークン削除</button>
                         </div>
                         <p class="settings-note">
