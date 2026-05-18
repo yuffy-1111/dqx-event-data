@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.2.8';
+const APP_VERSION = '2.2.9';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -200,12 +200,28 @@ const DQXTools = {
                 };
             });
         } else {
-            // PC：従来のサイドバー
+            // PC：右サイドバー（縦スクロール＋固定ボタン）
             menuBar.className = 'tool-menu-sidebar';
-            menuBar.innerHTML = menuButtons;
+            menuBar.innerHTML = `
+                <div class="tool-menu-sidebar-scroll">
+                    ${menuButtons}
+                </div>
+                <div class="tool-menu-sidebar-fixed">
+                    <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
+                    <button class="tool-menu-btn dark-mode-btn" data-action="dark">${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span></button>
+                </div>
+            `;
+            
             document.body.appendChild(menuBar);
             
-            document.querySelectorAll('.tool-menu-sidebar .tool-menu-btn').forEach(btn => {
+            // イベント設定
+            const homeBtn = menuBar.querySelector('[data-action="home"]');
+            if (homeBtn) homeBtn.onclick = () => this.goHome();
+            
+            const darkBtn = menuBar.querySelector('[data-action="dark"]');
+            if (darkBtn) darkBtn.onclick = () => this.toggleDarkMode();
+            
+            menuBar.querySelectorAll('.tool-menu-sidebar-scroll .tool-menu-btn').forEach(btn => {
                 btn.onclick = () => {
                     const toolId = btn.dataset.toolId;
                     if (toolId && this.currentTool !== toolId) {
@@ -213,7 +229,6 @@ const DQXTools = {
                     }
                 };
             });
-            this.addDarkModeButtonToMenu();
         }
         
         document.body.appendChild(menuBar);
@@ -231,22 +246,8 @@ const DQXTools = {
     },
 
     addDarkModeButtonToMenu: function() {
-        const menuBar = document.getElementById('tool-menu-bar');
-        if (!menuBar) return;
-
-        const homeBtn = document.createElement('button');
-        homeBtn.className = 'tool-menu-btn home-btn';
-        homeBtn.innerHTML = '🏠<span class="menu-btn-label">ホーム</span>';
-        homeBtn.onclick = () => this.goHome();
-        menuBar.appendChild(homeBtn);
-
-        const darkBtn = document.createElement('button');
-        darkBtn.className = 'tool-menu-btn dark-mode-btn';
-        darkBtn.innerHTML = this.darkMode
-            ? '☀️<span class="menu-btn-label">ライト</span>'
-            : '🌙<span class="menu-btn-label">ダーク</span>';
-        darkBtn.onclick = () => this.toggleDarkMode();
-        menuBar.appendChild(darkBtn);
+        // PC版では既に固定ボタンとして実装済みのため、この関数は使用しない
+        // ただし互換性のために残しておく
     },
 
     // テストツール読み込み用の共通関数
