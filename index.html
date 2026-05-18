@@ -72,7 +72,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.2.9';
+        const HTML_VERSION = '2.3.0';
         
         // リロード回数の管理（無限ループ防止）
         const RELOAD_KEY = 'dqx_reload_count';
@@ -210,11 +210,22 @@ window.addEventListener('load', function() {
     DQXTools.init('dqx-app');
 });
 </script>
-<!-- モバイルデバッグツール Eruda -->
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<!-- デバッグツール（?debug=1 または ?eruda で有効） -->
 <script>
-  console.log('Viewport width:', window.innerWidth);
-  eruda.init();
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const enableDebug = urlParams.has('debug') || urlParams.has('eruda');
+    
+    if (enableDebug) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        script.onload = function() {
+            eruda.init();
+            console.log('デバッグモード有効 - 幅:', window.innerWidth);
+        };
+        document.head.appendChild(script);
+    }
+})();
 </script>
 </body>
 </html>
