@@ -1,5 +1,11 @@
 /* ========== ランチャー共通スタイル ========== */
 
+/* テキスト自動拡大を完全に無効化 */
+* {
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
+}
+
 /* ----- ホーム画面 ----- */
 .home-container {
     max-width: 900px;
@@ -87,6 +93,8 @@
     color: #0066cc;
     line-height: 1.2;
     display: block;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
 }
 
 .tool-card-desc {
@@ -95,6 +103,8 @@
     margin: 0;
     line-height: 1.2;
     display: block;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
 }
 
 .home-footer {
