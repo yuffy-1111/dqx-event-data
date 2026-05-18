@@ -1,11 +1,5 @@
 /* ========== ランチャー共通スタイル ========== */
 
-/* テキスト自動拡大を完全に無効化 */
-* {
-    -webkit-text-size-adjust: 95% !important;
-    text-size-adjust: 95% !important;
-}
-
 /* ----- ホーム画面 ----- */
 .home-container {
     max-width: 900px;
