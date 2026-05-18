@@ -350,6 +350,38 @@ body.dark-mode .tool-menu-bottom {
     }
 }
 
+/* ----- Android専用微調整（文字サイズ1px縮小） ----- */
+body.android .tool-card-icon {
+    font-size: 31px;
+}
+
+body.android .tool-card-name {
+    font-size: 9px;
+    line-height: 1.25;
+}
+
+body.android .tool-card-desc {
+    font-size: 8px;
+    line-height: 1.2;
+}
+
+body.android .tool-card {
+    padding: 8px 6px 6px;
+}
+
+/* Androidかつスマホ表示時 */
+@media (max-width: 768px) {
+    body.android .tool-card-icon {
+        font-size: 30px;
+    }
+    body.android .tool-card-name {
+        font-size: 8px;
+    }
+    body.android .tool-card-desc {
+        font-size: 7px;
+    }
+}
+
 /* expmercenary のダークモード定義の button !important を上書き */
 body.dark-mode #tool-menu-bar .tool-menu-btn {
     background: transparent !important;
