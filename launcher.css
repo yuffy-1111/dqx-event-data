@@ -3,7 +3,7 @@
 /* テキスト自動拡大を完全に無効化 */
 * {
     -webkit-text-size-adjust: 100% !important;
-    text-size-adjust: 100% !important;
+    text-size-adjust: 95% !important;
 }
 
 /* ----- ホーム画面 ----- */
