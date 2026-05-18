@@ -5,27 +5,10 @@
             const container = document.querySelector(containerSelector);
             if (!container) return;
 
-            // 強制デスクトップモードの状態を取得
-            const isForceDesktop = localStorage.getItem('dqx_force_desktop') === 'true';
-
             container.innerHTML = `
                 <div class="settings-container">
                     <h2>⚙️ 設定</h2>
                     
-                    <div class="settings-card">
-                        <h3>📱 表示設定</h3>
-                        <div class="toggle-group">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="forceDesktopToggle" ${isForceDesktop ? 'checked' : ''}>
-                                <span class="toggle-slider"></span>
-                            </label>
-                            <span class="toggle-label">デスクトップ表示を強制する</span>
-                        </div>
-                        <p class="settings-note">
-                            ※ タブレット横画面などで表示が崩れる場合、ONにするとPCと同じ右サイドバーレイアウトになります。
-                        </p>
-                    </div>
-
                     <div class="settings-card">
                         <h3>🗑️ データ管理</h3>
                         <div class="button-group">
@@ -163,59 +146,6 @@
                 .x-link:hover {
                     background: #333333;
                 }
-                /* トグルスイッチのスタイル */
-                .toggle-group {
-                    display: flex;
-                    align-items: center;
-                    gap: 12px;
-                    margin: 12px 0;
-                }
-                .toggle-label {
-                    font-size: 14px;
-                    color: #333;
-                }
-                .toggle-switch {
-                    position: relative;
-                    display: inline-block;
-                    width: 50px;
-                    height: 24px;
-                }
-                .toggle-switch input {
-                    opacity: 0;
-                    width: 0;
-                    height: 0;
-                }
-                .toggle-slider {
-                    position: absolute;
-                    cursor: pointer;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background-color: #ccc;
-                    border-radius: 24px;
-                    transition: 0.2s;
-                }
-                .toggle-slider:before {
-                    position: absolute;
-                    content: "";
-                    height: 18px;
-                    width: 18px;
-                    left: 3px;
-                    bottom: 3px;
-                    background-color: white;
-                    border-radius: 50%;
-                    transition: 0.2s;
-                }
-                .toggle-switch input:checked + .toggle-slider {
-                    background-color: #0066cc;
-                }
-                .toggle-switch input:checked + .toggle-slider:before {
-                    transform: translateX(26px);
-                }
-                body.dark-mode .toggle-label {
-                    color: #e2e8f0;
-                }
                 body.dark-mode .settings-container h2 {
                     color: #60a5fa;
                 }
@@ -321,7 +251,7 @@
                 };
             }
 
-            // テストツールトークン削除
+            // テストツールトークン削除（追加）
             const tokenBtn = document.getElementById('clearTestToken');
             if (tokenBtn) {
                 tokenBtn.onclick = () => {
@@ -330,21 +260,6 @@
                         alert('✅ 認証トークンを削除しました');
                         updateStorageInfo();
                     }
-                };
-            }
-
-            // デスクトップ表示強制トグル
-            const forceDesktopToggle = document.getElementById('forceDesktopToggle');
-            if (forceDesktopToggle) {
-                forceDesktopToggle.onchange = (e) => {
-                    if (e.target.checked) {
-                        localStorage.setItem('dqx_force_desktop', 'true');
-                        alert('デスクトップ表示を強制します。再読み込みします。');
-                    } else {
-                        localStorage.removeItem('dqx_force_desktop');
-                        alert('デスクトップ表示強制を解除します。再読み込みします。');
-                    }
-                    location.reload();
                 };
             }
 
