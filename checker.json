@@ -22,6 +22,13 @@
       "endDateTime": "2026-06-24T23:59:00+09:00"
     },
     {
+      "id": "re_dragonlord",
+      "name": "竜王城の決戦",
+      "resetType": "once",
+      "startDateTime": "2026-05-20T12:00:00+09:00",
+      "endDateTime": "2026-05-31T23:59:00+09:00"
+    },
+    {
       "id": "re_ffⅹⅳ",
       "name": "お花大好きクポ！",
       "resetType": "once",
