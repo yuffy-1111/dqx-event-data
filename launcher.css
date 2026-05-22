@@ -1,4 +1,8 @@
 /* ========== ランチャー共通スタイル ========== */
+html, body {
+    overscroll-behavior-y: contain;
+    overscroll-behavior-x: none;
+}
 
 /* ----- ホーム画面 ----- */
 .home-container {
