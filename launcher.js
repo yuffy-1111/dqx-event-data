@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '3.0.0';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -40,6 +40,22 @@ const DQXTools = {
             console.error('コンテナが見つかりません:', containerId);
             return;
         }
+
+        // ========== Pull to Refresh（スワイプ引っ張り再読み込み）禁止 ==========
+        let touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        }, { passive: false });
+        document.addEventListener('touchmove', (e) => {
+            const touchY = e.touches[0].clientY;
+            if (touchY > touchStartY && window.scrollY === 0) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // ========== ストレージキーのクリーンアップ（不正なキーを削除） ==========
+        this.cleanupStorage();
+
         this.darkMode = localStorage.getItem('darkMode') === 'dark';
         this.applyDarkMode();
         this.showLauncher();
@@ -52,6 +68,55 @@ const DQXTools = {
             }
         };
         window.addEventListener('resize', this.boundResizeHandler);
+    },
+
+    cleanupStorage: function() {
+        // 許可されたlocalStorage キーのリスト
+        const allowedLocalStorageKeys = [
+            'dqx_app_version',
+            'dqx_card_order',
+            'dqx_test_token',
+            'dqx_dev_mode',
+            'darkMode',
+            'dqx_craft_last',
+            'dqx_chars_final10',
+            'dqx_disabled_final10',
+            'dqx_hidden_tasks_v1',
+            'dqx_limited_checks_v3'
+        ];
+
+        // ========== localStorageのクリーンアップ ==========
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (!key) continue;
+
+            // 許可リストに含まれている、または'dqx_check_final10_'で始まるキーは保持
+            const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
+            if (!isAllowed) {
+                try {
+                    localStorage.removeItem(key);
+                    console.log(`[Storage Cleanup] localStorage から削除: ${key}`);
+                } catch (e) {
+                    console.warn(`[Storage Cleanup] localStorage の削除に失敗: ${key}`, e);
+                }
+            }
+        }
+
+        // ========== sessionStorageのクリーンアップ ==========
+        const allowedSessionStorageKeys = ['dqx_reload_count'];
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+            const key = sessionStorage.key(i);
+            if (!key) continue;
+
+            if (!allowedSessionStorageKeys.includes(key)) {
+                try {
+                    sessionStorage.removeItem(key);
+                    console.log(`[Storage Cleanup] sessionStorage から削除: ${key}`);
+                } catch (e) {
+                    console.warn(`[Storage Cleanup] sessionStorage の削除に失敗: ${key}`, e);
+                }
+            }
+        }
     },
 
     applyDarkMode: function() {
