@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.3.3';
+const APP_VERSION = '2.3.4';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -44,19 +44,30 @@ const DQXTools = {
         // ========== Pull to Refresh（スワイプ引っ張り再読み込み）禁止 ==========
         let touchStartX = 0;
         let touchStartY = 0;
+        let touchStartAtTop = false;
+
+        function isPageAtTop() {
+            return window.pageYOffset === 0
+                || document.documentElement.scrollTop === 0
+                || document.body.scrollTop === 0;
+        }
+
         document.addEventListener('touchstart', (e) => {
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
-        }, { passive: false });
+            touchStartAtTop = isPageAtTop();
+        }, { passive: false, capture: true });
+
         document.addEventListener('touchmove', (e) => {
+            if (!touchStartAtTop) return;
             const touchX = e.touches[0].clientX;
             const touchY = e.touches[0].clientY;
-            const deltaX = touchX - touchStartX;
+            const deltaX = Math.abs(touchX - touchStartX);
             const deltaY = touchY - touchStartY;
-            if (deltaY > 0 && window.scrollY === 0 && Math.abs(deltaY) > Math.abs(deltaX)) {
+            if (deltaY > 0 && deltaY > deltaX) {
                 e.preventDefault();
             }
-        }, { passive: false });
+        }, { passive: false, capture: true });
 
         // ========== ストレージキーのクリーンアップ（不正なキーを削除） ==========
         this.cleanupStorage();
