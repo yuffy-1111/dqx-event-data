@@ -72,11 +72,78 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.3.1';
+        const HTML_VERSION = '3.0.0';
         
         // リロード回数の管理（無限ループ防止）
         const RELOAD_KEY = 'dqx_reload_count';
         const MAX_RELOAD = 2;
+
+        // ========== ストレージキーのクリーンアップ（毎読み込み時） ==========
+        function cleanupStorage() {
+            // 許可されたlocalStorage キーのリスト
+            const allowedLocalStorageKeys = [
+                'dqx_app_version',
+                'dqx_card_order',
+                'dqx_test_token',
+                'dqx_dev_mode',
+                'darkMode',
+                'dqx_craft_last',
+                'dqx_chars_final10',
+                'dqx_disabled_final10',
+                'dqx_hidden_tasks_v1',
+                'dqx_limited_checks_v3'
+            ];
+
+            // ========== localStorageのクリーンアップ ==========
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const key = localStorage.key(i);
+                if (!key) continue;
+
+                // 許可リストに含まれている、または'dqx_check_final10_'で始まるキーは保持
+                const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
+                if (!isAllowed) {
+                    try {
+                        localStorage.removeItem(key);
+                        console.log(`[Storage Cleanup] localStorage から削除: ${key}`);
+                    } catch (e) {
+                        console.warn(`[Storage Cleanup] localStorage の削除に失敗: ${key}`, e);
+                    }
+                }
+            }
+
+            // ========== sessionStorageのクリーンアップ ==========
+            const allowedSessionStorageKeys = ['dqx_reload_count'];
+            for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                const key = sessionStorage.key(i);
+                if (!key) continue;
+
+                if (!allowedSessionStorageKeys.includes(key)) {
+                    try {
+                        sessionStorage.removeItem(key);
+                        console.log(`[Storage Cleanup] sessionStorage から削除: ${key}`);
+                    } catch (e) {
+                        console.warn(`[Storage Cleanup] sessionStorage の削除に失敗: ${key}`, e);
+                    }
+                }
+            }
+        }
+
+        // ページ読み込み時にクリーンアップを実行
+        document.addEventListener('DOMContentLoaded', cleanupStorage);
+
+        // Pull to Refresh（スワイプ引っ張り再読み込み）禁止
+        document.addEventListener('DOMContentLoaded', function() {
+            let touchStartY = 0;
+            document.addEventListener('touchstart', (e) => {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: false });
+            document.addEventListener('touchmove', (e) => {
+                const touchY = e.touches[0].clientY;
+                if (touchY > touchStartY && window.scrollY === 0) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        });
         
         function checkVersionAndReload() {
             let reloadCount = parseInt(sessionStorage.getItem(RELOAD_KEY)) || 0;
