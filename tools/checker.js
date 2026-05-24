@@ -1166,7 +1166,7 @@ body { font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; background
 /* 分割テーブルレイアウト */
 #tableWrapper { display: flex; align-items: flex-start; width: 100%; overflow: hidden; }
 #leftPanel    { flex-shrink: 0; overflow: hidden; border-right: 2px solid #94a8c2; background: inherit; position: relative; z-index: 5; }
-#rightPanel   { flex: 1; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
+#rightPanel   { flex: 1; overflow-x: auto; overflow-y: hidden; }
 #leftTable, #rightTable { border-collapse: collapse; font-size: 0.7rem; }
 #leftTable  { width: 100%; }
 #rightTable { width: max-content; min-width: 100%; }
