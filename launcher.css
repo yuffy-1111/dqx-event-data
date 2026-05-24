@@ -3,7 +3,6 @@ html, body {
     overscroll-behavior-y: contain;
     overscroll-behavior-x: none;
 }
-
 /* ----- ホーム画面 ----- */
 .home-container {
     max-width: 900px;
@@ -103,6 +102,12 @@ html, body {
     display: block;
     -webkit-text-size-adjust: 100% !important;
     text-size-adjust: 100% !important;
+}
+
+/* グレーアウト */
+.tool-card-disabled {
+    opacity: 0.5;
+    filter: grayscale(0.3);
 }
 
 .home-footer {
