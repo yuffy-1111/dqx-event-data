@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.3.5';
+const APP_VERSION = '2.3.6';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -42,28 +42,13 @@ const DQXTools = {
         }
 
         // ========== Pull to Refresh（スワイプ引っ張り再読み込み）禁止 ==========
-        let touchStartX = 0;
         let touchStartY = 0;
-        let touchStartAtTop = false;
-
-        function isPageAtTop() {
-            const root = document.scrollingElement || document.documentElement;
-            return root.scrollTop <= 0;
-        }
-
         document.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
-            touchStartAtTop = isPageAtTop();
         }, { passive: false });
-
         document.addEventListener('touchmove', (e) => {
-            if (!touchStartAtTop) return;
-            const touchX = e.touches[0].clientX;
             const touchY = e.touches[0].clientY;
-            const deltaX = Math.abs(touchX - touchStartX);
-            const deltaY = touchY - touchStartY;
-            if (deltaY > 0 && deltaY > deltaX) {
+            if (touchY > touchStartY && window.scrollY === 0) {
                 e.preventDefault();
             }
         }, { passive: false });
@@ -158,6 +143,12 @@ const DQXTools = {
         const savedOrder = localStorage.getItem('dqx_card_order');
         const order = savedOrder ? JSON.parse(savedOrder) : null;
         
+        // トークンが有効かチェック
+        const hasValidToken = () => {
+            const token = localStorage.getItem('dqx_test_token');
+            return token && token.length >= 40;
+        };
+        
         // ツールを順序に従ってソート
         let toolEntries = Object.entries(this.tools);
         if (order) {
@@ -171,12 +162,17 @@ const DQXTools = {
             });
         }
         
+        const isValidToken = hasValidToken();
+        
         const cardButtons = toolEntries.map(([id, tool]) => {
             const icon = tool.icon || '🔧';
             const name = tool.name;
             const desc = tool.desc || '';
+            const isDisabled = tool.requiresToken && !isValidToken;
+            const disabledClass = isDisabled ? 'tool-card-disabled' : '';
+            
             return `
-                <div class="tool-card" data-tool-id="${id}">
+                <div class="tool-card ${disabledClass}" data-tool-id="${id}" data-requires-token="${tool.requiresToken || false}">
                     <div class="tool-card-icon">${icon}</div>
                     <div class="tool-card-name">${name}</div>
                     <div class="tool-card-desc">${desc}</div>
@@ -208,6 +204,17 @@ const DQXTools = {
         document.querySelectorAll('.tool-card').forEach(card => {
             card.onclick = () => {
                 const toolId = card.dataset.toolId;
+                const requiresToken = card.dataset.requiresToken === 'true';
+                const isValidTokenNow = hasValidToken();
+                
+                if (requiresToken && !isValidTokenNow) {
+                    const token = prompt('GitHub APIトークンを入力してください（開発者専用）');
+                    if (token && token.length >= 40) {
+                        localStorage.setItem('dqx_test_token', token);
+                        this.showLauncher();
+                    }
+                    return;
+                }
                 this.loadTool(toolId);
             };
         });
