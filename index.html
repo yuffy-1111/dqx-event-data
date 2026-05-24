@@ -72,7 +72,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.3.5';
+        const HTML_VERSION = '2.3.6';
         
         // リロード回数の管理（無限ループ防止）
         const RELOAD_KEY = 'dqx_reload_count';
@@ -133,28 +133,13 @@
 
         // Pull to Refresh（スワイプ引っ張り再読み込み）禁止
         document.addEventListener('DOMContentLoaded', function() {
-            let touchStartX = 0;
             let touchStartY = 0;
-            let touchStartAtTop = false;
-
-            function isPageAtTop() {
-                const root = document.scrollingElement || document.documentElement;
-                return root.scrollTop <= 0;
-            }
-
             document.addEventListener('touchstart', (e) => {
-                touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
-                touchStartAtTop = isPageAtTop();
             }, { passive: false });
-
             document.addEventListener('touchmove', (e) => {
-                if (!touchStartAtTop) return;
-                const touchX = e.touches[0].clientX;
                 const touchY = e.touches[0].clientY;
-                const deltaX = Math.abs(touchX - touchStartX);
-                const deltaY = touchY - touchStartY;
-                if (deltaY > 0 && deltaY > deltaX) {
+                if (touchY > touchStartY && window.scrollY === 0) {
                     e.preventDefault();
                 }
             }, { passive: false });
@@ -282,6 +267,7 @@ window.addEventListener('load', function() {
             url: '',
             renderFn: '',
             hideInMenu: true,
+            requiresToken: true,
             testToolConfig: {
                 filename: tool.file,
                 globalName: tool.globalName
