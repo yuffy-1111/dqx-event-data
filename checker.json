@@ -15,6 +15,20 @@
       "endDateTime": "2026-05-14T05:59:00+09:00"
     },
     {
+      "id": "prison-fever-2026-05",
+      "name": "天獄フィーバー",
+      "resetType": "daily",
+      "startDateTime": "2026-05-31T06:00:00+09:00",
+      "endDateTime": "2026-06-11T05:59:00+09:00"
+    },
+    {
+      "id": "re_nemies-2026-06",
+      "name": "伝説の宿敵たち",
+      "resetType": "daily",
+      "startDateTime": "2026-06-02T12:00:00+09:00",
+      "endDateTime": "2026-06-22T05:59:00+09:00"
+    },
+    {
       "id": "7gift",
       "name": "ver7ウェルカムギフト",
       "resetType": "daily",
