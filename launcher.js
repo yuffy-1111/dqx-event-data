@@ -1,6 +1,6 @@
 // ==========ツールランチャー（改造版）=========
 // ========== バージョン管理 ==========
-const APP_VERSION = '2.3.6';
+const APP_VERSION = '2.4.0';
 
 // バージョン情報をグローバルに公開（HTML側と整合性チェック用）
 window.LAUNCHER_VERSION = APP_VERSION;
@@ -23,7 +23,8 @@ const DQXTools = {
     container: null,
     darkMode: false,
     boundResizeHandler: null,
-    sortableInstance: null,  // SortableJSインスタンスを保存
+    sortableInstance: null,
+    sidebarVisible: true,
 
     register: function(toolId, toolConfig) {
         this.tools[toolId] = toolConfig;
@@ -33,6 +34,10 @@ const DQXTools = {
         return window.innerWidth <= 768;
     },
 
+    isTabletLandscape: function() {
+        return window.innerWidth > 768 && window.innerWidth < 1024 && window.innerHeight < window.innerWidth;
+    },
+
     init: function(containerId) {
         checkVersionUpdate();
         this.container = document.getElementById(containerId);
@@ -40,6 +45,13 @@ const DQXTools = {
             console.error('コンテナが見つかりません:', containerId);
             return;
         }
+
+        // サイドバーの表示状態を復元（デフォルトは表示）
+        const saved = localStorage.getItem('dqx_sidebar_visible');
+        this.sidebarVisible = saved !== null ? saved !== 'false' : true;
+        console.log(`[DQXTools] sidebar init: saved=${saved} sidebarVisible=${this.sidebarVisible}`);
+        // body にクラスを付与して CSS で見た目を保持（リロード後の復元用）
+        document.body.classList.toggle('sidebar-hidden', !this.sidebarVisible);
 
         // ========== Pull to Refresh（スワイプ引っ張り再読み込み）禁止 ==========
         let touchStartY = 0;
@@ -53,7 +65,7 @@ const DQXTools = {
             }
         }, { passive: false });
 
-        // ========== ストレージキーのクリーンアップ（不正なキーを削除） ==========
+        // ========== ストレージキーのクリーンアップ ==========
         this.cleanupStorage();
 
         this.darkMode = localStorage.getItem('darkMode') === 'dark';
@@ -71,7 +83,6 @@ const DQXTools = {
     },
 
     cleanupStorage: function() {
-        // 許可されたlocalStorage キーのリスト
         const allowedLocalStorageKeys = [
             'dqx_app_version',
             'dqx_card_order',
@@ -82,15 +93,16 @@ const DQXTools = {
             'dqx_chars_final10',
             'dqx_disabled_final10',
             'dqx_hidden_tasks_v1',
-            'dqx_limited_checks_v3'
+            'dqx_limited_checks_v3',
+            'dqx_lap_notify',
+            'dqx_shopping_cart',
+            'dqx_material_prices',
+            'dqx_sidebar_visible'
         ];
 
-        // ========== localStorageのクリーンアップ ==========
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const key = localStorage.key(i);
             if (!key) continue;
-
-            // 許可リストに含まれている、または'dqx_check_final10_'で始まるキーは保持
             const isAllowed = allowedLocalStorageKeys.includes(key) || key.startsWith('dqx_check_final10_');
             if (!isAllowed) {
                 try {
@@ -102,12 +114,10 @@ const DQXTools = {
             }
         }
 
-        // ========== sessionStorageのクリーンアップ ==========
         const allowedSessionStorageKeys = ['dqx_reload_count'];
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
             const key = sessionStorage.key(i);
             if (!key) continue;
-
             if (!allowedSessionStorageKeys.includes(key)) {
                 try {
                     sessionStorage.removeItem(key);
@@ -138,18 +148,28 @@ const DQXTools = {
         }
     },
 
+    toggleSidebar: function() {
+        this.sidebarVisible = !this.sidebarVisible;
+        localStorage.setItem('dqx_sidebar_visible', String(this.sidebarVisible));
+        // body クラスを更新して即座に見た目を反映
+        document.body.classList.toggle('sidebar-hidden', !this.sidebarVisible);
+        console.log(`[DQXTools] toggleSidebar -> sidebarVisible=${this.sidebarVisible}`);
+        // ツールメニューを再描画
+        if (this.currentTool !== null) {
+            this.renderToolMenu();
+        }
+        this.updateContainerPadding();
+    },
+
     showLauncher: function() {
-        // 保存された順序を読み込み
         const savedOrder = localStorage.getItem('dqx_card_order');
         const order = savedOrder ? JSON.parse(savedOrder) : null;
         
-        // トークンが有効かチェック
         const hasValidToken = () => {
             const token = localStorage.getItem('dqx_test_token');
             return token && token.length >= 40;
         };
         
-        // ツールを順序に従ってソート
         let toolEntries = Object.entries(this.tools);
         if (order) {
             toolEntries.sort((a, b) => {
@@ -200,7 +220,6 @@ const DQXTools = {
             toggleBtn.onclick = () => this.toggleDarkMode();
         }
 
-        // カードクリックイベント
         document.querySelectorAll('.tool-card').forEach(card => {
             card.onclick = () => {
                 const toolId = card.dataset.toolId;
@@ -219,7 +238,6 @@ const DQXTools = {
             };
         });
         
-        // SortableJS を初期化（ドラッグ＆ドロップ）
         const homeGrid = this.container.querySelector('.home-grid');
         if (homeGrid && typeof Sortable !== 'undefined') {
             if (this.sortableInstance) {
@@ -237,8 +255,8 @@ const DQXTools = {
 
     renderToolMenu: function() {
         const isMobile = this.isMobile();
+        console.log(`[DQXTools] renderToolMenu: sidebarVisible=${this.sidebarVisible} localStorage=${localStorage.getItem('dqx_sidebar_visible')}`);
 
-        // hideInMenu が true のツールは除外
         const menuEntries = Object.entries(this.tools).filter(([id, tool]) => !tool.hideInMenu);
 
         const menuButtons = menuEntries.map(([id, tool]) => {
@@ -255,11 +273,14 @@ const DQXTools = {
         const oldBar = document.getElementById('tool-menu-bar');
         if (oldBar) oldBar.remove();
 
+        // フロートボタンを削除（再作成するため）
+        const oldFloatBtn = document.getElementById('sidebar-float-toggle');
+        if (oldFloatBtn) oldFloatBtn.remove();
+
         const menuBar = document.createElement('div');
         menuBar.id = 'tool-menu-bar';
         
         if (isMobile) {
-            // スマホ：左スクロール＋右固定レイアウト
             menuBar.className = 'tool-menu-bottom';
             menuBar.innerHTML = `
                 <div class="tool-menu-scroll">
@@ -271,7 +292,8 @@ const DQXTools = {
                 </div>
             `;
             
-            // イベント設定
+            document.body.appendChild(menuBar);
+            
             const homeBtn = menuBar.querySelector('[data-action="home"]');
             if (homeBtn) homeBtn.onclick = () => this.goHome();
             
@@ -287,13 +309,17 @@ const DQXTools = {
                 };
             });
         } else {
-            // PC：右サイドバー（縦スクロール＋固定ボタン）
+            // PC／タブレット横向き
+            const isHidden = !this.sidebarVisible;
             menuBar.className = 'tool-menu-sidebar';
+            menuBar.style.display = isHidden ? 'none' : '';
+            
             menuBar.innerHTML = `
                 <div class="tool-menu-sidebar-scroll">
                     ${menuButtons}
                 </div>
                 <div class="tool-menu-sidebar-fixed">
+                    <button class="tool-menu-btn sidebar-toggle-btn" data-action="toggle-sidebar">◀<span class="menu-btn-label">閉じる</span></button>
                     <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
                     <button class="tool-menu-btn dark-mode-btn" data-action="dark">${this.darkMode ? '☀️' : '🌙'}<span class="menu-btn-label">${this.darkMode ? 'ライト' : 'ダーク'}</span></button>
                 </div>
@@ -301,7 +327,9 @@ const DQXTools = {
             
             document.body.appendChild(menuBar);
             
-            // イベント設定
+            const toggleBtn = menuBar.querySelector('[data-action="toggle-sidebar"]');
+            if (toggleBtn) toggleBtn.onclick = () => this.toggleSidebar();
+            
             const homeBtn = menuBar.querySelector('[data-action="home"]');
             if (homeBtn) homeBtn.onclick = () => this.goHome();
             
@@ -316,28 +344,39 @@ const DQXTools = {
                     }
                 };
             });
-        }
-        
-        document.body.appendChild(menuBar);
 
-        const toolContainer = document.getElementById('dqx-tool-container');
-        if (toolContainer) {
-            if (isMobile) {
-                toolContainer.style.paddingBottom = '70px';
-                toolContainer.style.paddingRight = '0';
-            } else {
-                toolContainer.style.paddingBottom = '0';
-                toolContainer.style.paddingRight = '80px';
+            // 格納状態に応じてフロートボタンを表示
+            if (isHidden) {
+                const floatBtn = document.createElement('button');
+                floatBtn.id = 'sidebar-float-toggle';
+                floatBtn.className = 'sidebar-float-btn';
+                floatBtn.textContent = '▶';
+                floatBtn.title = 'ツールバーを表示';
+                // 強制的に表示させる（CSS で非表示になっている環境対策）
+                floatBtn.style.display = 'flex';
+                floatBtn.onclick = () => this.toggleSidebar();
+                document.body.appendChild(floatBtn);
             }
         }
+        
+        this.updateContainerPadding();
     },
 
-    addDarkModeButtonToMenu: function() {
-        // PC版では既に固定ボタンとして実装済みのため、この関数は使用しない
-        // ただし互換性のために残しておく
+    updateContainerPadding: function() {
+        const isMobile = this.isMobile();
+        const toolContainer = document.getElementById('dqx-tool-container');
+        if (!toolContainer) return;
+
+        if (isMobile) {
+            toolContainer.style.paddingBottom = '70px';
+            toolContainer.style.paddingRight = '0';
+        } else {
+            const isHidden = !this.sidebarVisible;
+            toolContainer.style.paddingBottom = '0';
+            toolContainer.style.paddingRight = isHidden ? '0' : '80px';
+        }
     },
 
-    // テストツール読み込み用の共通関数
     loadTestTool: async function(toolId, tool) {
         const config = tool.testToolConfig;
         if (!config) return false;
@@ -365,6 +404,7 @@ const DQXTools = {
             const code = await res.text();
             
             const script = document.createElement('script');
+            script.dataset.testTool = config.filename;
             script.textContent = code;
             document.head.appendChild(script);
             
@@ -397,7 +437,6 @@ const DQXTools = {
         if (!tool) return;
         if (this.currentTool === toolId) return;
 
-        // テストツール（hideInMenu + testToolConfig）は特別処理
         if (tool.hideInMenu && tool.testToolConfig) {
             this.destroyCurrentTool();
             const oldContainer = document.getElementById('dqx-tool-container');
@@ -459,9 +498,7 @@ const DQXTools = {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         try {
-            const oldScript = document.querySelector(`script[src*="${tool.url.split('/').pop()}"]`);
-            if (oldScript) oldScript.remove();
-
+            this.removeOldToolScripts(tool.url);
             await this.loadScript(tool.url);
 
             const fn = tool.renderFn
@@ -499,6 +536,9 @@ const DQXTools = {
         const menuBar = document.getElementById('tool-menu-bar');
         if (menuBar) menuBar.remove();
 
+        const floatBtn = document.getElementById('sidebar-float-toggle');
+        if (floatBtn) floatBtn.remove();
+
         const oldContainer = document.getElementById('dqx-tool-container');
         if (oldContainer) oldContainer.remove();
 
@@ -506,8 +546,7 @@ const DQXTools = {
         newContainer.id = 'dqx-tool-container';
         this.container.appendChild(newContainer);
 
-        const scripts = document.querySelectorAll('script[src*="testtool"]');
-        scripts.forEach(script => script.remove());
+        this.removeTestToolScripts();
 
         this.currentTool = null;
         this.showLauncher();
@@ -517,13 +556,22 @@ const DQXTools = {
         if (this.currentTool) {
             const tool = this.tools[this.currentTool];
             if (tool) {
-                const globalName = tool.renderFn.split('.')[0];
-                if (window[globalName] && typeof window[globalName].destroy === 'function') {
-                    window[globalName].destroy();
+                if (tool.testToolConfig) {
+                    const testGlobalName = tool.testToolConfig.globalName;
+                    if (window[testGlobalName] && typeof window[testGlobalName].destroy === 'function') {
+                        window[testGlobalName].destroy();
+                    }
+                } else if (tool.renderFn) {
+                    const globalName = tool.renderFn.split('.')[0];
+                    if (window[globalName] && typeof window[globalName].destroy === 'function') {
+                        window[globalName].destroy();
+                    }
                 }
             }
         }
-        
+
+        this.removeTestToolScripts();
+
         const possibleGlobalNames = ['DQtool', 'DQtool2', 'DQtool3', 'Tool4'];
         possibleGlobalNames.forEach(globalName => {
             if (window[globalName] && typeof window[globalName].destroy === 'function') {
@@ -541,6 +589,20 @@ const DQXTools = {
             window.removeEventListener('resize', this.boundResizeHandler);
             this.boundResizeHandler = null;
         }
+        const floatBtn = document.getElementById('sidebar-float-toggle');
+        if (floatBtn) floatBtn.remove();
+    },
+
+    removeOldToolScripts: function(url) {
+        const cacheBustUrl = url + '?v=' + APP_VERSION;
+        const rawUrl = url;
+
+        document.querySelectorAll(`script[src="${cacheBustUrl}"]`).forEach(script => script.remove());
+        document.querySelectorAll(`script[src="${rawUrl}"]`).forEach(script => script.remove());
+    },
+
+    removeTestToolScripts: function() {
+        document.querySelectorAll('script[data-test-tool]').forEach(script => script.remove());
     },
 
     loadScript: function(url) {
