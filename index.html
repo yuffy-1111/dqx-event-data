@@ -72,7 +72,7 @@
         }
     </style>
     <script>
-        const HTML_VERSION = '2.3.6';
+        const HTML_VERSION = '2.4.0';
         
         // リロード回数の管理（無限ループ防止）
         const RELOAD_KEY = 'dqx_reload_count';
@@ -91,7 +91,12 @@
                 'dqx_chars_final10',
                 'dqx_disabled_final10',
                 'dqx_hidden_tasks_v1',
-                'dqx_limited_checks_v3'
+                'dqx_limited_checks_v3',
+                'dqx_lap_notify',
+                'dqx_shopping_cart',
+                'dqx_material_prices',
+                // サイドバーの表示状態を保持するため許可
+                'dqx_sidebar_visible'
             ];
 
             // ========== localStorageのクリーンアップ ==========
@@ -208,7 +213,7 @@
         // ツール定義（ファイル名, グローバル名, 表示名, アイコン）
         const TEST_TOOLS = [
             { file: 'testtool.js', globalName: 'DQtool', name: '構成保存', icon: '📊' },
-            { file: 'testtool2.js', globalName: 'DQtool2', name: '傭兵Webhook', icon: '📤' },
+            { file: 'testtool2.js', globalName: 'DQtool2', name: 'テスト空枠', icon: '💿' },
             { file: 'testtool3.js', globalName: 'DQtool3', name: '職人ツール', icon: '🛠️' }
         ];
         
