@@ -477,7 +477,7 @@ const DQXTools = {
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            transition: opacity 0.3s;
+            transition: opacity 0.1s;
         `;
         loadingDiv.innerHTML = `
             <div style="text-align: center;">
