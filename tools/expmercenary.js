@@ -1,13 +1,13 @@
-// ========== 傭兵用多機能ツール ver2.1.0 (merged) ==========
-// ベース: ver2.0.0 統合
-// [CSS]    インラインstyleを全廃し、クラスベース設計思想で再定義
+// ========== 傭兵用多機能ツール ver2.3.0 ==========
+// ベース: ver2.2.0 統合
+// [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
-// [QUAL]   基本的な動作ロジックは2.0.0から変更なし
+// [QUAL]   基本的な動作ロジックは2.1.0から変更なし（ver2.2.0時点）
+// [LOGIC]  経験値計算を実測値ベースに修正: applyLimit 廃止 → floor + fdBonus 方式に変更（ver2.3.0）
 
 // 変更履歴（ver2.0.0時点）:
 // [BUG] _recalcLaps: 削除後の lastLapSec 更新を正確化
 // [BUG] jobOffsetSec: 転職ボタン連打防止(1秒クールダウン)
-// [BUG] passbookOffset: 浮動小数の端数を Math.ceil で統一
 // [SEC] innerHTML を createElement+textContent に置き換え(XSS対策)
 // [PERF] querySelectorAll を addRow 時のキャッシュ配列管理に変更
 // [PERF] setInterval を 42ms（~24fps）に変更(表示更新負荷削減)
@@ -16,15 +16,15 @@
 // [QUAL] ExpCalc をファクトリ関数化（複数インスタンス対応）
 // [QUAL] CSV1/CSV2 のキー型を統一(すべて文字列)
 // [QUAL] ritaOrKuma は AC リセット対象外(転職先選好はセッション継続が自然なため)
-// [QUAL] calcLockedUntil の 100ms 制限を廃止(タイマー開始と加算は独立)
+// [QUAL] calcLockedUntil の 100ms 制限を 3000ms（加算後クールダウン）に変更
 
 (function (global) {
   "use strict";
 
-  // ─── パートナー経験値定数 ───────────────────────────────────────────────
+  // ─── お供経験値定数 ───────────────────────────────────────────────
   const PARTNER_EXP = {
     none: 0, mk: 48240, hm1: 12060, hm2: 24120, hm3: 36180,
-    tappitsu: 4800, gn: 2240, sn: 1120, zucchini: 9010,
+    gn: 720, sn: 720, zucchini: 9010,
   };
 
   const EXP_PER_LV = 1589326;
@@ -125,7 +125,7 @@
     return map;
   })();
 
-  // ─── パートナー選択肢テンプレート（cloneNode で再利用） ───────────────
+  // ─── お供選択肢テンプレート（cloneNode で再利用） ───────────────
   function buildPartnerTemplate(includeDearth) {
     const frag = document.createDocumentFragment();
     const defs = [
@@ -135,7 +135,7 @@
       ["hm3",      "はぐメタ3"],
       ["mk",       "メタキン"],
       ["gn",       "ゲノミー"],
-      ["sn",       "仙人"],
+      ["sn",       "ﾀｯﾋﾟﾂ仙人"],
     ];
     if (includeDearth) defs.push(["zucchini", "ズッキ祖"]);
     defs.forEach(([val, label]) => {
@@ -179,14 +179,6 @@
       return `${String(m).padStart(2, "0")}:${s}`;
     }
 
-    // ── 経験値上限適用 ───────────────────────────────────────────────────
-    function applyLimit(val, limit, fd) {
-      const rounded = Math.round(val);
-      const isNearInt = Math.abs(val - rounded) < 0.1;
-      const ceiled = fd && isNearInt ? rounded + 1 : Math.ceil(val);
-      return Math.min(ceiled, limit);
-    }
-
     // ── 経験値計算 ───────────────────────────────────────────────────────
     function calcExp(callCount, partnerKey = "none", snap = null) {
       let baseExp, bonusExp, fd, tr, ag, em, elixir, pbVal;
@@ -206,7 +198,7 @@
         ag     = $("ag").checked;
         em     = $("em").checked;
         elixir = root.querySelector('input[name="e_exp"]:checked')?.value || "none";
-        pbVal  = $("pb").value;
+        pbVal  = root.querySelector('input[name="pb"]:checked')?.value || "0";
       }
 
       let rate = 1.0;
@@ -221,31 +213,37 @@
       const hasPassbook    = passbookLimit > 0;
       const isHighLimit    = elixir === "bakushin" || tr;
       const expLimit       = isHighLimit ? 1499999 : 599999;
-      const angelLimit     = isHighLimit ? 1499999 : 599999;
 
       const rawCommon  = baseExp * rate + bonusExp;
       const rawAngel   = ag ? baseExp * 2 : 0;
       const rawPCommon = partnerExpVal * rate;
       const rawPAngel  = ag ? partnerExpVal * 2 : 0;
 
-      const rawTotalCommon = rawCommon  * callCount + rawPCommon;
-      const rawTotalAngel  = rawAngel   * callCount + rawPAngel;
+      // ゲームの経験値計算ロジック（実測値9件から確定）:
+      //   floor(total) + (料理あり ? 1 : 0)
+      // 料理(+0.3)があるとrateに小数部が生じる。c=5,10等でtotalが
+      // 数学的には整数になる組み合わせでもゲームは+1する。
+      // 料理なし(rate=整数)はtotalが正確に整数になるため+1不要。
+      // エンゼル経験値(rawAngel)のrateは×2固定(整数)のため料理補正は
+      // 通常経験値と同じ条件(ag && fd)でのみ適用する。
+      const fdBonus = fd ? 1 : 0;
+      const rawTotalCommon = Math.floor(rawCommon * callCount + rawPCommon) + fdBonus;
+      const rawTotalAngel  = Math.floor(rawAngel  * callCount + rawPAngel)  + (ag && fd ? 1 : 0);
       const rawTotal       = rawTotalCommon + rawTotalAngel;
 
       if (hasPassbook) {
         const commonCapped = Math.min(rawTotalCommon, expLimit);
-        const angelCapped  = Math.min(rawTotalAngel,  angelLimit);
-        const overflow     = Math.ceil((rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped));
-        const common       = applyLimit(commonCapped, expLimit, fd);
-        const angel        = Math.min(Math.ceil(angelCapped), angelLimit);
+        const angelCapped  = Math.min(rawTotalAngel,  expLimit);
+        const overflow     = Math.max(0, (rawTotalCommon - commonCapped) + (rawTotalAngel - angelCapped));
+        const common       = commonCapped;
+        const angel        = angelCapped;
         return { total: common + angel, common, angel, overflow,
           rawTotalCapped: commonCapped + angelCapped,
           rawCommonCapped: commonCapped, rawAngelCapped: angelCapped };
       } else {
         const cappedTotal = Math.min(rawTotal, expLimit);
-        const total       = applyLimit(cappedTotal, expLimit, fd);
-        return { total, common: total, angel: 0,
-          overflow: Math.ceil(rawTotal - cappedTotal),
+        return { total: cappedTotal, common: cappedTotal, angel: 0,
+          overflow: Math.max(0, rawTotal - cappedTotal),
           rawTotalCapped: cappedTotal, rawCommonCapped: cappedTotal, rawAngelCapped: 0 };
       }
     }
@@ -254,12 +252,13 @@
     function lookupOptimalMonster() {
       const elixir = root.querySelector('input[name="e_exp"]:checked')?.value || "none";
       if (elixir === "none") return "durahan";
-      const tr  = $("tr").checked ? "○" : "×";
-      const ag  = $("ag").checked ? "○" : "×";
-      const em  = $("em").checked ? "○" : "×";
-      const pbRaw = $("pb").value;
-      const pb  = pbRaw === "5000000" ? "1" : pbRaw === "10000000" ? "2" : "0";
-      const key = `${elixir}|${tr}|${ag}|${em}|${pb}`;
+      const food = $("fd").checked ? "1" : "0";
+      const tr   = $("tr").checked ? "1" : "0";
+      const ag   = $("ag").checked ? "1" : "0";
+      const em   = $("em").checked ? "1" : "0";
+      const pbRaw = root.querySelector('input[name="pb"]:checked')?.value || "0";
+      const pb   = pbRaw !== "0" ? "1" : "0";
+      const key  = `${food}|${tr}|${ag}|${em}|${elixir}|${pb}`;
       const result = CSV2_TABLE[key];
       if (!result) return "durahan";
       return result === "rita_or_kuma" ? ritaOrKuma : result;
@@ -272,7 +271,7 @@
       const tr     = $("tr").checked   ? "1" : "0";
       const em     = $("em").checked   ? "1" : "0";
       const ag     = $("ag").checked   ? "1" : "0";
-      const pbRaw  = $("pb").value;
+      const pbRaw  = root.querySelector('input[name="pb"]:checked')?.value || "0";
       const pb     = pbRaw !== "0"     ? "1" : "0";
       const elixir = root.querySelector('input[name="e_exp"]:checked')?.value || "none";
       const key    = `${ms}|${food}|${tr}|${em}|${ag}|${pb}|${elixir}`;
@@ -336,6 +335,7 @@
     }
 
     // ── 平均ラップ取得 ───────────────────────────────────────────────────
+    // { avg: number, count: number } を返す。対象行がなければ null
     function getAverageLapSec() {
       const times = rowCache
         .filter(r => r.dataset.lap !== "-1" &&
@@ -345,7 +345,7 @@
         .map(r => parseFloat(r.dataset.lap))
         .filter(v => !isNaN(v));
       if (times.length === 0) return null;
-      return times.reduce((a, b) => a + b, 0) / times.length;
+      return { avg: times.reduce((a, b) => a + b, 0) / times.length, count: times.length };
     }
 
     // ── 行キャッシュ（追加順: 古い→新しい） ─────────────────────────────
@@ -399,7 +399,7 @@
         ag:     $("ag").checked,
         em:     $("em").checked,
         elixir: root.querySelector('input[name="e_exp"]:checked')?.value || "none",
-        pb:     $("pb").value,
+        pb:     root.querySelector('input[name="pb"]:checked')?.value || "0",
         ms:     monsterId || $("ms").value,
       };
       row.dataset.snapshot = JSON.stringify(snapshot);
@@ -483,19 +483,34 @@
       }
       row.appendChild(expCell);
 
-      // ── デスペナチェック ────────────────────────────────────────────────
-      const despLabel = document.createElement("label");
-      despLabel.className = "desp-label";
-      const despCb = document.createElement("input");
-      despCb.type      = "checkbox";
-      despCb.className = "desp-tgl";
-      despCb.checked   = hasDeathPenalty;
-      const despIcon = document.createElement("span");
-      despIcon.className   = "desp-icon";
-      despIcon.textContent = "💀";
-      despLabel.appendChild(despCb);
-      despLabel.appendChild(despIcon);
-      row.appendChild(despLabel);
+      // ── デスペナチェック（LAP・転職行には表示しない） ──────────────────
+      if (rowId !== "LAP" && rowType !== "job") {
+        const despLabel = document.createElement("label");
+        despLabel.className = "desp-label";
+        const despCb = document.createElement("input");
+        despCb.type      = "checkbox";
+        despCb.className = "desp-tgl";
+        despCb.checked   = hasDeathPenalty;
+        const despIcon = document.createElement("span");
+        despIcon.className   = "desp-icon";
+        despIcon.textContent = "💀";
+        despLabel.appendChild(despCb);
+        despLabel.appendChild(despIcon);
+        row.appendChild(despLabel);
+
+        despCb.onchange = () => {
+          const newDesp = despCb.checked ? "true" : "false";
+          const bid = row.dataset.bid;
+          rowCache
+            .filter(r => r.dataset.bid === bid && r.dataset.type !== "lap_only" && r.dataset.type !== "job")
+            .forEach(r => {
+              r.dataset.desp = newDesp;
+              const cb = r.querySelector(".desp-tgl");
+              if (cb) cb.checked = despCb.checked;
+            });
+          updateTotal();
+        };
+      }
 
       // ── コントロール（呼び数・パートナー） ──────────────────────────────
       if (rowId !== "LAP" && rowType !== "job") {
@@ -510,26 +525,60 @@
         row.appendChild(controls);
 
         const recalcRowExp = () => {
-          const snap        = JSON.parse(row.dataset.snapshot);
           const newCount    = parseInt(cSel.value);
           const newPartner  = rSel.value;
-          row.dataset.count = newCount;
-          const result = calcExp(newCount, newPartner, snap);
-          const newVal = row.dataset.type === "angel"  ? result.angel
-                       : row.dataset.type === "pass"   ? result.common
-                       : result.total;
-          row.dataset.val          = newVal;
-          row.dataset.rawValCapped = newVal;
-          row.querySelector(".exp-value").textContent = newVal.toLocaleString();
+          const bid = row.dataset.bid;
+
+          // 同一bid（通帳/エンゼル/溢れ）の全行へ呼び数・お供を連携
+          const group = rowCache.filter(r =>
+            r.dataset.bid === bid && r.dataset.type !== "lap_only" && r.dataset.type !== "job");
+
+          const passRow     = group.find(r => r.dataset.type === "pass");
+          const overflowRow = group.find(r => r.dataset.type === "overflow");
+
+          // 通帳行と溢れ行が同居する場合: 加算時点の通帳上限(passVal)を維持し、
+          // 新しい共通exp合計から通帳上限を差し引いた残りを溢れ行に充てる
+          const origPassVal = passRow ? (parseFloat(passRow.dataset.val) || 0) : null;
+
+          group.forEach(r => {
+            const snap = JSON.parse(r.dataset.snapshot);
+            r.dataset.count = newCount;
+
+            const rSelOther = r.querySelector(".rs");
+            const cSelOther = r.querySelector(".cs");
+            if (rSelOther && rSelOther !== rSel) rSelOther.value = newPartner;
+            if (cSelOther && cSelOther !== cSel) cSelOther.value = String(newCount);
+
+            const result = calcExp(newCount, newPartner, snap);
+
+            let newVal;
+            if (r.dataset.type === "angel") {
+              newVal = result.angel;
+            } else if (r.dataset.type === "pass") {
+              // 通帳上限に達していた行は上限値のまま据え置き、未到達なら新しい共通expに追従
+              newVal = origPassVal !== null && overflowRow
+                ? Math.min(result.common, origPassVal)
+                : result.common;
+            } else if (r.dataset.type === "overflow" && passRow) {
+              newVal = Math.max(0, result.common - origPassVal);
+            } else if (r.dataset.type === "overflow") {
+              // 通帳行が無い（全額溢れ）場合
+              newVal = result.common;
+            } else {
+              newVal = result.total;
+            }
+
+            r.dataset.val          = newVal;
+            r.dataset.rawValCapped = newVal;
+            const valEl = r.querySelector(".exp-value");
+            if (valEl) valEl.textContent = newVal.toLocaleString();
+          });
+
           updateTotal();
         };
 
         cSel.onchange = recalcRowExp;
         rSel.onchange = recalcRowExp;
-        despCb.onchange = () => {
-          row.dataset.desp = despCb.checked ? "true" : "false";
-          updateTotal();
-        };
       } else {
         const placeholder = document.createElement("div");
         placeholder.className   = "row-controls-placeholder";
@@ -551,7 +600,7 @@
         const type = r.dataset.type;
         if (type === "lap_only" || type === "job") return;
         if (r.dataset.bid === "LAP") return;
-        if (type === "angel") {
+        if (type === "angel" || type === "overflow") {
           const el = r.querySelector(".row-id-normal");
           if (el) el.textContent = `#${num - 1}`;
         } else {
@@ -609,7 +658,6 @@
     function updateTotal() {
       let totalExp    = 0;
       let passbookExp = 0;
-      const lapTimes  = [];
       let penaltyMin  = 0;
       let penaltyMax  = 0;
 
@@ -617,13 +665,6 @@
         const expVal = parseInt(el.dataset.val) || 0;
         totalExp += expVal;
         if (el.dataset.type === "pass") passbookExp += expVal;
-
-        if (el.dataset.lap !== "-1" &&
-            el.dataset.type !== "lap_only" &&
-            el.dataset.type !== "job" &&
-            el.dataset.main === "true") {
-          lapTimes.push(parseFloat(el.dataset.lap));
-        }
 
         if (el.dataset.desp === "true" &&
             el.dataset.lap !== "-1" &&
@@ -638,9 +679,9 @@
         }
       });
 
-      $("totalExpDisplay").textContent = Math.ceil(totalExp).toLocaleString();
+      $("totalExpDisplay").textContent = totalExp.toLocaleString();
 
-      const passbookLimit = parseInt($("pb").value) || 0;
+      const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
       if (passbookLimit > 0) {
         const remaining = Math.max(0, passbookExp - passbookOffset);
         $("passbookExpDisplay").textContent = Math.ceil(remaining).toLocaleString();
@@ -663,12 +704,13 @@
         penaltyRef.classList.add("hidden");
       }
 
-      if (lapTimes.length > 0) {
-        const avgSec = lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length;
+      const lapResult = getAverageLapSec();
+      if (lapResult !== null) {
+        const { avg: avgSec, count: lapCount } = lapResult;
         $("avgTimeDisplay").textContent = formatTime(avgSec);
         if (avgSec > 0.01) {
           const battles30min = Math.floor(1800 / avgSec);
-          const expPerBattle = totalExp / lapTimes.length;
+          const expPerBattle = totalExp / lapCount;
           $("estimatedGoldDisplay").textContent =
             `${Math.round(expPerBattle * battles30min / 1e4)}万～` +
             `${Math.round(expPerBattle * (battles30min + 1) / 1e4)}万`;
@@ -683,7 +725,7 @@
 
     // ── UI更新 ───────────────────────────────────────────────────────────
     function updateUI(autoSetCount = false) {
-      const passbookLimit = parseInt($("pb").value) || 0;
+      const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
       const passbookArea  = $("passbookArea");
       if (passbookLimit > 0) {
         passbookArea.classList.remove("hidden");
@@ -752,11 +794,11 @@ ${getStyles()}
       <option value="dearthlicant"  data-base="15191" data-bonus="0">ダースリカント</option>
       <option value="golem_strong"  data-base="20350" data-bonus="0">ゴーレム強</option>
     </select>
-    <select id="pb" class="passbook-select">
-      <option value="0" selected>通帳なし</option>
-      <option value="5000000">通帳1(500万)</option>
-      <option value="10000000">通帳2(1000万)</option>
-    </select>
+    <div class="rita-kuma-col">
+      <button id="btnRita" class="btn-rita-kuma active-rita-kuma">リタ</button>
+      <button id="btnKuma" class="btn-rita-kuma">クマ</button>
+    </div>
+    <button id="btnOptMonster" class="btn-opt-monster">最適<br>ﾓﾝｽﾀｰ</button>
   </div>
 
   <div class="row-exp-summary">
@@ -764,38 +806,43 @@ ${getStyles()}
       <span id="currentExpDisplay" class="current-exp-value">0</span>
       <span id="overflowDisplay" class="overflow-text invisible">溢れ:0</span>
     </div>
-    <div class="rita-kuma-col">
-      <button id="btnRita" class="btn-rita-kuma active-rita-kuma">◯リタ</button>
-      <button id="btnKuma" class="btn-rita-kuma">◯クマ</button>
-    </div>
-    <button id="btnOptMonster" class="btn-opt-monster">最適<br>ﾓﾝｽﾀｰ</button>
     <div class="call-count-col">
       <div class="call-count-label">討伐数</div>
-      <select id="cn" class="call-count-select">
-        <option value="1">A</option><option value="2">B</option><option value="3">C</option>
-        <option value="4">D</option><option value="5">E</option><option value="6">F</option>
-        <option value="7">G</option><option value="8">H</option><option value="9">I</option>
-        <option value="10">J</option><option value="11" selected>K</option><option value="12">L</option>
-      </select>
+      <div class="call-count-stepper">
+        <button id="btnCallDown" type="button" class="call-count-arrow" aria-label="討伐数を減らす"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M15 5 L8 12 L15 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <select id="cn" class="call-count-select">
+          <option value="1">A</option><option value="2">B</option><option value="3">C</option>
+          <option value="4">D</option><option value="5">E</option><option value="6">F</option>
+          <option value="7">G</option><option value="8">H</option><option value="9">I</option>
+          <option value="10">J</option><option value="11" selected>K</option><option value="12">L</option>
+        </select>
+        <button id="btnCallUp" type="button" class="call-count-arrow" aria-label="討伐数を増やす"><svg viewBox="0 0 24 24" class="call-count-arrow-icon"><path d="M9 5 L16 12 L9 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
     </div>
   </div>
 
   <div id="timer-row" class="timer-row">
     <div class="buff-area">
-      <div class="elixir-radio-row">
-        <label><input name="e_exp" type="radio" value="none" />無</label>
-        <label><input name="e_exp" type="radio" value="genki" checked />元気</label>
-        <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label>
-      </div>
-      <div class="buff-checkbox-row">
+      <div class="buff-row-1">
         <button id="btnBuffReset" class="btn-oc">OC</button>
-        <div class="buff-checkbox-group">
-          <label><input id="fd" type="checkbox" checked />料理</label>
-          <label><input id="tr" type="checkbox" />修練</label>
+        <span class="passbook-label">通帳:</span>
+        <div class="passbook-radio-group">
+          <label><input name="pb" type="radio" value="0" checked />無</label>
+          <label><input name="pb" type="radio" value="5000000" />1</label>
+          <label><input name="pb" type="radio" value="10000000" />2</label>
         </div>
-        <div class="buff-checkbox-group">
-          <label><input id="ag" type="checkbox" />エンゼル</label>
-          <label><input id="em" type="checkbox" />皇帝</label>
+      </div>
+      <div class="buff-row-2">
+        <label><input id="fd" type="checkbox" checked />料理</label>
+        <label><input id="tr" type="checkbox" />修練</label>
+        <label><input id="ag" type="checkbox" />エンゼル</label>
+        <label><input id="em" type="checkbox" />皇帝</label>
+      </div>
+      <div class="buff-row-3">
+        <div class="elixir-radio-row">
+          <label><input name="e_exp" type="radio" value="none" />無</label>
+          <label><input name="e_exp" type="radio" value="genki" checked />元気</label>
+          <label><input name="e_exp" type="radio" value="bakushin" />爆伸</label>
         </div>
       </div>
     </div>
@@ -880,7 +927,7 @@ ${getStyles()}
         const lap = timerHandle ? elapsed - lastLapSec : null;
         const callCount = parseInt($("cn").value);
         const expResult = calcExp(callCount);
-        const passbookLimit = parseInt($("pb").value) || 0;
+        const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
 
         if (passbookLimit > 0) {
           let accumulatedRaw = 0;
@@ -1011,9 +1058,9 @@ ${getStyles()}
           updateTimerDisplay(elapsed);
 
           if (lapNotifyEnabled) {
-            const avg     = getAverageLapSec();
-            const current = elapsed - lastLapSec;
-            if (avg !== null && current > avg) {
+            const lapResult = getAverageLapSec();
+            const current   = elapsed - lastLapSec;
+            if (lapResult !== null && current > lapResult.avg) {
               if (!lapNotifyFired) {
                 lapNotifyFired = true;
                 playLapWarning();
@@ -1091,17 +1138,32 @@ ${getStyles()}
         $("em").checked = false;
         const genki = root.querySelector('input[name="e_exp"][value="genki"]');
         if (genki) genki.checked = true;
-        $("pb").value = "0";
+        const pbNone = root.querySelector('input[name="pb"][value="0"]');
+        if (pbNone) pbNone.checked = true;
         updateUI(true);
+      };
+
+      $("btnCallDown").onclick = () => {
+        const sel = $("cn");
+        const newVal = Math.max(1, parseInt(sel.value) - 1);
+        sel.value = String(newVal);
+        updateUI(false);
+      };
+      $("btnCallUp").onclick = () => {
+        const sel = $("cn");
+        const newVal = Math.min(12, parseInt(sel.value) + 1);
+        sel.value = String(newVal);
+        updateUI(false);
       };
 
       root.querySelectorAll('input[name="e_exp"], #fd, #tr, #ag, #em, #ms')
           .forEach(el => { el.onchange = () => updateUI(true); });
       $("cn").onchange = () => updateUI(false);
 
-      // 通帳切り替え時：新上限を超えた pass 行を新しい順から切り捨て
-      $("pb").onchange = () => {
-        const newLimit = parseInt($("pb").value) || 0;
+      // 通帳ラジオボタン切り替え時：新上限を超えた pass 行を新しい順から切り捨て
+      root.querySelectorAll('input[name="pb"]').forEach(radio => {
+        radio.onchange = () => {
+          const newLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
         if (newLimit > 0) {
           const passRows = rowCache.filter(r => r.dataset.type === "pass");
           let total = passRows.reduce((s, r) => s + (parseFloat(r.dataset.rawValCapped) || 0), 0);
@@ -1128,7 +1190,8 @@ ${getStyles()}
           if (passbookOffset > newLimit) passbookOffset = newLimit;
         }
         updateUI(true);
-      };
+        };
+      });
 
       // ── バージョン情報モーダル（ヘッダー常時表示、コンテンツ展開式） ─────
       (function addVersionModal() {
@@ -1160,7 +1223,31 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
-v2.1.0 ...最終更新日 2026/06/19
+v2.3.0 ...最終更新日 2026/06/27
+  - お供経験値の設定の修正
+  - 計算ロジックの修正（floor + fdBonus 方式）
+  - angelLimit を expLimit に統合
+  - getAverageLapSec の戻り値を { avg, count } 形式に変更し updateTotal の重複集計を統合
+  - renumberRows で overflow 行にも行番号を補正するよう修正
+  - destroy() のリセット漏れ変数を追加（killCount / calcLockedUntil / lapNotifyFired / jobBtnLocked）
+  - addVersionModal の DOM 参照を document 全体から root 起点に変更
+  - totalExpDisplay の冗長な Math.ceil を削除
+
+v2.2.0 ...最終更新日 2026/06/21
+  - LAP及び転職行からデスペナルティを削除
+  - 微細なカラー及びサイズ調整
+  - 通帳選択をラジオボタンに変更
+  - 討伐数選択左右にステッパー追加
+  - 履歴行の連動強化
+  - 大幅なレイアウト配置の変更
+  - querySelectorAll をキャッシュ管理に変更
+  - ritaOrKuma は AC リセット対象外に調整
+  - passbookOffset の端数処理を Math.ceil で統一
+  - ExpCalc をファクトリ関数化（複数インスタンス対応）
+  - CSV1/CSV2 のキー型をすべて文字列に統一
+  - calcLockedUntil の 100ms 制限を廃止
+
+v2.1.0
   - LAP音声通知をresume対応版に更新
   - クラスベースCSSへ全面移行
 
@@ -1219,13 +1306,15 @@ v1.1.7
   </div>
 </div>`;
 
-        const versionContainer = document.querySelector('#dqx-tool-container');
+        const versionContainer = root.parentElement;
         if (versionContainer) {
           versionContainer.insertAdjacentHTML('afterend', modalHTML);
         }
 
-        const tabs = document.querySelectorAll('.modal-tab');
-        const contents = document.querySelectorAll('.modal-tab-content');
+        // モーダルは versionContainer の直後の兄弟要素として挿入される
+        const modalEl   = versionContainer ? versionContainer.nextElementSibling : document.getElementById('versionModal');
+        const tabs      = modalEl ? modalEl.querySelectorAll('.modal-tab')         : [];
+        const contents  = modalEl ? modalEl.querySelectorAll('.modal-tab-content') : [];
         let activeTab = null;
 
         const openTab = (tabId) => {
@@ -1239,10 +1328,10 @@ v1.1.7
           contents.forEach(c => c.classList.remove('active'));
           tabs.forEach(t => t.classList.remove('active'));
 
-          const target = document.getElementById(`tab-${tabId}`);
+          const target = modalEl ? modalEl.querySelector(`#tab-${tabId}`) : null;
           if (target) target.classList.add('active');
 
-          const activeTabEl = document.querySelector(`.modal-tab[data-tab="${tabId}"]`);
+          const activeTabEl = modalEl ? modalEl.querySelector(`.modal-tab[data-tab="${tabId}"]`) : null;
           if (activeTabEl) activeTabEl.classList.add('active');
 
           activeTab = tabId;
@@ -1262,7 +1351,13 @@ v1.1.7
       destroy() {
         if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
         startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
+        killCount = calcLockedUntil = 0;
+        lapNotifyFired = jobBtnLocked = false;
         rowCache.length = 0;
+
+        // render() で root.parentElement の afterend に挿入した versionModal を削除
+        const modal = document.getElementById('versionModal');
+        if (modal) modal.remove();
       },
     };
   }
@@ -1287,36 +1382,41 @@ v1.1.7
   .hidden{display:none!important}
   .invisible{visibility:hidden}
 
-  /* ── 上段: モンスター/通帳/通知トグル ───────────────────────────── */
-  .row-top{display:flex;gap:6px;margin-bottom:6px;align-items:center}
-  .notify-toggle{display:flex;align-items:center;gap:4px;background:#f0f7ff;padding:2px 8px;border-radius:20px;font-size:11px;border:1px solid #7ab8ff}
+  /* ── 上段: LAP通知/モンスター/リタ/クマ/最適モンスター ───────────── */
+  .row-top{display:flex;gap:4px;margin-bottom:6px;align-items:center;min-height:36.75px}
+  .notify-toggle{display:flex;align-items:center;gap:4px;background:#f0f7ff;padding:2px 8px;border-radius:20px;font-size:11px;border:1px solid #7ab8ff;flex-shrink:0;align-self:stretch}
   .notify-toggle input{width:16px;height:16px;margin:0;cursor:pointer}
   .notify-toggle label{cursor:pointer;font-size:11px;margin:0}
-  .monster-select{flex:2;padding:6px;font-size:15px;border:1px solid #7ab8ff;border-radius:4px;font-weight:bold;text-align:center;background-color:#fff;color:#333}
-  .passbook-select{flex:1;padding:6px;font-size:12px;border:1px solid #7ab8ff;border-radius:4px;background-color:#fff;color:#333}
+  .monster-select{flex:1.5;padding:6px;font-size:15px;border:1px solid #7ab8ff;border-radius:4px;font-weight:bold;text-align:center;background-color:#fff;color:#333;align-self:stretch}
+  .rita-kuma-col{display:flex;flex-direction:row;gap:2px;flex-shrink:0;align-self:stretch}
+  .btn-rita-kuma{font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid #bbb;cursor:pointer;font-weight:bold;transition:background 0.15s,color 0.15s,border-color 0.15s;background:#f5f5f5;color:#888;white-space:nowrap;flex:1}
+  .btn-rita-kuma.active-rita-kuma{background:#e8f0ff;color:#06c;border-color:#7ab8ff}
+  .btn-opt-monster{background:#06c;color:#fff;border:none;border-radius:6px;font-size:10px;font-weight:bold;cursor:pointer;padding:3px 6px;line-height:1.3;white-space:nowrap;flex-shrink:0;align-self:stretch}
+  .btn-opt-monster.is-optimal{opacity:0.5;cursor:not-allowed}
 
-  /* ── 経験値サマリー行 ────────────────────────────────────────────── */
+  /* ── 経験値・討伐数行 ────────────────────────────────────────────── */
   .row-exp-summary{display:flex;gap:4px;margin-bottom:8px;align-items:stretch}
-  .exp-card{flex:2;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px}
+  .exp-card{flex:2.4;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;background:#f0f7ff;border:1px solid #7ab8ff;border-radius:6px}
   .current-exp-value{font-size:22px;font-weight:bold;color:#06c}
   .overflow-text{font-size:9px;color:#999;margin-top:2px}
-  .rita-kuma-col{display:flex;flex-direction:column;gap:3px}
-  .btn-rita-kuma{flex:1;font-size:11px;padding:3px 7px;border-radius:4px;border:1px solid #bbb;cursor:pointer;font-weight:bold;transition:background 0.15s,color 0.15s,border-color 0.15s;background:#f5f5f5;color:#888}
-  .btn-rita-kuma.active-rita-kuma{background:#e8f0ff;color:#06c;border-color:#7ab8ff}
-  .btn-opt-monster{background:#06c;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:bold;cursor:pointer;padding:4px 6px;line-height:1.3;white-space:nowrap}
-  .btn-opt-monster.is-optimal{opacity:0.5;cursor:not-allowed}
-  .call-count-col{width:60px}
-  .call-count-label{font-size:7px;color:#666;text-align:center}
-  .call-count-select{width:100%;padding:2px;font-size:18px;font-weight:bold;border:1px solid #7ab8ff;border-radius:4px;text-align:center;background-color:#fff;color:#333}
+  .call-count-col{flex:1;display:flex;flex-direction:column;align-items:stretch;justify-content:center;height:auto}
+  .call-count-label{font-size:7px;color:#666;margin-bottom:2px;text-align:center;flex-shrink:0}
+  .call-count-stepper{display:flex;align-items:stretch;width:100%;gap:3px;flex:1;min-height:0}
+  .call-count-arrow{flex:0 0 28px;padding:0;border:1px solid #7ab8ff;border-radius:4px;background-color:#f0f7ff;color:#06c;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .call-count-arrow-icon{width:18px;height:18px}
+  .call-count-select{flex:1;min-width:0;height:100%;padding:2px;font-size:20px;font-weight:bold;border:1px solid #7ab8ff;border-radius:4px;text-align:center;background-color:#fff;color:#333}
 
   /* ── タイマー行（バフ設定） ──────────────────────────────────────── */
-  .timer-row{background:#f8f9fc;border-radius:6px;padding:6px 8px;margin-bottom:8px;display:flex;gap:6px}
-  .buff-area{flex:1;font-size:12px;display:flex;flex-direction:column;align-items:flex-end;padding-right:50px;justify-content:center}
-  .elixir-radio-row{margin-bottom:3px;display:flex;gap:8px}
-  .buff-checkbox-row{border-top:1px solid #ddd;padding-top:3px;width:100%;display:flex;justify-content:flex-end;gap:14px;font-size:11px;align-items:center}
-  .buff-checkbox-group{display:flex;flex-direction:column;gap:2px}
-  .btn-oc{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;padding:6px 12px;font-size:12px;cursor:pointer}
-  .btn-timer-stop{width:72px;font-size:12px;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px;background:#008888;color:#fff;border:1px solid #00aaaa}
+  .timer-row{background:#f8f9fc;border-radius:6px;padding:6px 8px;margin-bottom:8px;display:flex;gap:8px;align-items:stretch}
+  .buff-area{flex:1;display:flex;flex-direction:column;justify-content:space-between;gap:4px;min-width:0}
+  .buff-row-1{display:flex;gap:10px;font-size:11px;justify-content:flex-end;align-items:center}
+  .passbook-label{font-size:11px;font-weight:bold;color:#333;margin:0}
+  .passbook-radio-group{display:flex;gap:12px;font-size:11px}
+  .buff-row-2{display:flex;align-items:center;gap:8px;font-size:11px;justify-content:flex-end;border-top:1px solid #ddd;padding-top:3px}
+  .buff-row-3{display:flex;gap:8px;font-size:11px;justify-content:flex-end}
+  .elixir-radio-row{display:flex;gap:8px;font-size:11px}
+  .btn-oc{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px;padding:4px 8px;font-size:10px;line-height:1.2;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-right:auto}
+  .btn-timer-stop{width:79px;font-size:12px;border-radius:4px;cursor:pointer;font-weight:bold;padding:2px;background:#008888;color:#fff;border:1px solid #00aaaa;align-self:stretch;line-height:1.3}
 
   /* ── 合計＋加算ボタン行 ──────────────────────────────────────────── */
   .row-total-calc{display:flex;gap:6px;margin-bottom:8px}
@@ -1340,9 +1440,9 @@ v1.1.7
   .lap-label-small{font-size:10px}
   .lap-display{font-size:18px;font-weight:bold;color:#2cc9ff;line-height:24px}
   .timer-buttons-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:3px;margin-top:4px}
-  .timer-buttons-grid button{padding:7px;font-size:11px;font-weight:bold;cursor:pointer}
+  .timer-buttons-grid button{padding:6px 2px;font-size:10px;font-weight:bold;cursor:pointer;line-height:1.2;white-space:normal}
   .btn-danger{background:#e74c3c;color:#fff;border:none;border-radius:4px}
-  .btn-info{background:#3498db;color:#fff;border:none;border-radius:4px}
+  .btn-info{background:#2563eb;color:#fff;border:none;border-radius:4px}
   .btn-warning{background:#fff1f0;border:1px solid #ffa39e;color:#cf1322;border-radius:4px}
   .btn-teal{background:#00bcd4;color:#fff;border:none;border-radius:4px}
 
@@ -1409,6 +1509,7 @@ v1.1.7
   body.dark-mode .call-count-select,
   body.dark-mode .rs,
   body.dark-mode .cs{background-color:#2a2f45;color:#5a9eff;border-color:#7ab8ff}
+  body.dark-mode .call-count-arrow{background-color:#2a2f45;color:#5a9eff;border-color:#7ab8ff}
 
   body.dark-mode .exp-card{background:#2a2f45;border-color:#7ab8ff}
   body.dark-mode .current-exp-value{color:#5a9eff}
@@ -1418,7 +1519,11 @@ v1.1.7
   body.dark-mode .btn-opt-monster{background:#1a6eaa;border:1px solid #3399cc}
 
   body.dark-mode .timer-row{background:#2a2f45}
-  body.dark-mode .buff-checkbox-row{border-top-color:#3a3a4a}
+  body.dark-mode .buff-row-2{border-top-color:#3a3a4a}
+  body.dark-mode .buff-row-1,
+  body.dark-mode .buff-row-2,
+  body.dark-mode .buff-row-3,
+  body.dark-mode .passbook-label{color:#e8e8f0}
   body.dark-mode .btn-oc{background:#2a1515;border:1px solid #883333;color:#cc7777}
   body.dark-mode .btn-timer-stop{background:#006666;border:1px solid #008888}
 
@@ -1433,7 +1538,7 @@ v1.1.7
   body.dark-mode .sync-small{color:#aaa}
   body.dark-mode .lap-display{color:#2cc9ff}
   body.dark-mode .btn-danger{background:#aa3333;color:#fff;border:1px solid #cc5555}
-  body.dark-mode .btn-info{background:#1a77aa;color:#fff;border:1px solid #3399cc}
+  body.dark-mode .btn-info{background:#1e40af;color:#fff;border:1px solid #3b82f6}
   body.dark-mode .btn-warning{background:#2a1515;border:1px solid #883333;color:#cc7777}
   body.dark-mode .btn-teal{background:#1a8899;color:#fff;border:1px solid #33aabb}
 
