@@ -1,9 +1,10 @@
-// ========== 傭兵用多機能ツール ver2.3.0 ==========
-// ベース: ver2.2.0 統合
+// ========== 傭兵用多機能ツール ver2.4.0 ==========
+// ベース: ver2.3.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
 // [QUAL]   基本的な動作ロジックは2.1.0から変更なし（ver2.2.0時点）
 // [LOGIC]  経験値計算を実測値ベースに修正: applyLimit 廃止 → floor + fdBonus 方式に変更（ver2.3.0）
+// [RECOVERY] 電話中断・誤操作等でdestroyを経由せず終了した場合のセッション自動保存/復元を追加（ver2.4.0）
 
 // 変更履歴（ver2.0.0時点）:
 // [BUG] _recalcLaps: 削除後の lastLapSec 更新を正確化
@@ -762,6 +763,143 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // ── 状態保存・復元（電話着信などによるプロセス強制終了への対策） ───────
+    // ─────────────────────────────────────────────────────────────────────
+    // 方針:
+    //   ・使用中は状態を随時 localStorage へスナップショット保存する
+    //   ・render() を開いた瞬間、まず必ず initState() でクリーンな状態にしてから、
+    //     「起動中フラグ」が残っていれば（＝前回 destroy を経由せず終了した）復元する
+    //   ・destroy()（正常な離脱）では保存データを破棄し、次回は復元されないようにする
+    const STORAGE_KEY_SESSION = 'dqx_expm_session';
+    const STORAGE_KEY_ACTIVE  = 'dqx_expm_active';
+
+    function serializeRows() {
+      return rowCache.map((r) => ({
+        rowId:           r.dataset.bid,
+        callCount:       r.dataset.count,
+        expVal:          parseFloat(r.dataset.val) || 0,
+        rowType:         r.dataset.type,
+        elapsedSec:      parseFloat(r.dataset.sec) || 0,
+        lapSec:          (r.dataset.lap !== undefined && parseFloat(r.dataset.lap) >= 0)
+                            ? parseFloat(r.dataset.lap) : null,
+        isMain:          r.dataset.main === "true",
+        rawCapped:       r.dataset.rawValCapped !== undefined ? parseFloat(r.dataset.rawValCapped) : null,
+        monsterId:       r.dataset.monsterId || null,
+        hasDeathPenalty: r.dataset.desp === "true",
+        snapshot:        r.dataset.snapshot || null,
+      }));
+    }
+
+    function saveSession() {
+      try {
+        localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
+          startTime, pauseSec, lastLapSec, jobOffsetSec, passbookOffset,
+          killCount, optCallCount, ritaOrKuma,
+          timerRunning: !!timerHandle,
+          rows: serializeRows(),
+          savedAt: Date.now(),
+        }));
+      } catch (e) { /* Safari プライベートモード等での失敗は無視 */ }
+    }
+
+    function markActive() {
+      try { localStorage.setItem(STORAGE_KEY_ACTIVE, '1'); } catch (e) {}
+    }
+
+    function clearSession() {
+      try {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE);
+        localStorage.removeItem(STORAGE_KEY_SESSION);
+      } catch (e) {}
+    }
+
+    function initState() {
+      // destroy() を挟まずに render() が呼ばれても、必ずクリーンな初期値から始める
+      if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+      startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
+      killCount        = 0;
+      optCallCount      = 1;
+      calcLockedUntil   = 0;
+      ritaOrKuma        = "returner";
+      lapNotifyFired    = false;
+      jobBtnLocked      = false;
+      rowCache.length   = 0;
+    }
+
+    function restoreSessionIfCrashed() {
+      const wasActive = localStorage.getItem(STORAGE_KEY_ACTIVE) === '1';
+      if (!wasActive) return; // 前回 destroy() を経由して正常終了している → 復元しない
+
+      let data = null;
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_SESSION);
+        if (!raw) return;
+        data = JSON.parse(raw);
+      } catch (e) {
+        console.warn('[expmercenary] セッション復元失敗:', e);
+        clearSession();
+        return;
+      }
+
+      // 復元可能な猶予は32分。ホーム遷移等を経由しない（destroyされない）状態で
+      // 終了した場合でも、32分を超えた古いスナップショットは復元せず、
+      // リセット処理（clearSession）を経由してクリーンな状態に倒す。
+      const RESTORE_LIMIT_MS = 32 * 60 * 1000;
+      if (!data || !data.savedAt || (Date.now() - data.savedAt) > RESTORE_LIMIT_MS) {
+        clearSession();
+        return;
+      }
+
+      try {
+        (data.rows || []).forEach((r) => {
+          addRow(
+            r.rowId, r.callCount, r.expVal, r.rowType, r.elapsedSec, r.lapSec,
+            r.isMain, r.rawCapped, r.monsterId, r.hasDeathPenalty
+          );
+          // addRow は現在のUI状態からsnapshotを再計算してしまうため、
+          // 保存しておいた本来のsnapshot（当時のfd/tr/ag/em等の状態）で上書きする
+          const restoredRow = rowCache[rowCache.length - 1];
+          if (restoredRow && r.snapshot) restoredRow.dataset.snapshot = r.snapshot;
+        });
+
+        killCount      = data.killCount || 0;
+        optCallCount   = data.optCallCount || 1;
+        jobOffsetSec   = data.jobOffsetSec || 0;
+        passbookOffset = data.passbookOffset || 0;
+        lastLapSec     = data.lastLapSec || 0;
+
+        if (data.ritaOrKuma) {
+          ritaOrKuma = data.ritaOrKuma;
+          const isKuma = ritaOrKuma !== "returner";
+          $("btnRita")?.classList.toggle("active-rita-kuma", !isKuma);
+          $("btnKuma")?.classList.toggle("active-rita-kuma", isKuma);
+        }
+
+        // タイマーは安全のため自動再開せず、一時停止状態として復元する
+        // （バックグラウンドで停止していた間の経過は正確に追えないため）
+        if (data.timerRunning && data.startTime) {
+          pauseSec = Math.max(0, (data.savedAt - data.startTime) / 1000);
+        } else {
+          pauseSec = data.pauseSec || 0;
+        }
+        if (pauseSec > 0) {
+          updateTimerDisplay(pauseSec);
+          const btn = $("btnTimerStop");
+          if (btn) btn.innerHTML = "タイマー<br>再開";
+        }
+
+        renumberRows();
+        recalcLaps();
+        updateTotal();
+        saveSession();   // savedAt を更新し、復元直後の32分猶予をリセットする
+
+        window.dqxShowToast?.('前回のログを復元しました（電話や誤操作などで中断された可能性があります）', { duration: 3500 });
+      } catch (e) {
+        console.warn('[expmercenary] セッション復元処理でエラー:', e);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // ── render ────────────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────────────
     function render(containerSelector) {
@@ -770,6 +908,8 @@
         : containerSelector;
       if (!container) return;
       root = container;
+
+      initState();   // ① destroy を挟まず開かれた場合に備え、必ずクリーンな状態にする
 
       const savedNotify = localStorage.getItem("dqx_lap_notify");
       if (savedNotify !== null) lapNotifyEnabled = savedNotify === "true";
@@ -915,6 +1055,7 @@ ${getStyles()}
         lastLapSec = elapsed;
         lapNotifyFired = false;
         updateTimerDisplay(elapsed);
+        saveSession();
       };
 
       $("btnCalc").onclick = () => {
@@ -953,6 +1094,7 @@ ${getStyles()}
 
         lastLapSec = elapsed;
         updateTimerDisplay(elapsed);
+        saveSession();
 
         // 3秒クールダウン
         calcLockedUntil = Date.now() + 3000;
@@ -988,6 +1130,7 @@ ${getStyles()}
         updateTimerDisplay(0);
         updateTotal();
         updateUI();
+        clearSession();   // 明示的な全消去なので、クラッシュ復旧用スナップショットも消す
       };
 
       $("btnPassbookReset").onclick = () => {
@@ -1026,6 +1169,7 @@ ${getStyles()}
           addRow("JOB", 0, 0, "job", elapsed, elapsed - lastLapSec);
           lastLapSec = elapsed;
         }
+        saveSession();
       };
 
       $("btnRita").onclick = () => {
@@ -1047,6 +1191,7 @@ ${getStyles()}
       };
 
       // タイマー開始/再開（ラベルを状態に応じて切り替え）
+      let lastAutoSaveTs = 0;
       $("btnTimerStop").onclick = () => {
         if (timerHandle) return;   // 既に動作中なら無視
         if (!audioCtx) {
@@ -1069,8 +1214,17 @@ ${getStyles()}
               lapNotifyFired = false;
             }
           }
+
+          // タイマー動作中は1.5秒間隔で間引いてスナップショット保存
+          // （42msごとに毎回保存すると負荷が高いため）
+          const now = Date.now();
+          if (now - lastAutoSaveTs > 1500) {
+            lastAutoSaveTs = now;
+            saveSession();
+          }
         }, 42);    // ~24fps
         $("btnTimerStop").innerHTML = "タイマー<br>作動中";
+        saveSession();
       };
 
       $("btnTimerPause").onclick = () => {
@@ -1081,6 +1235,7 @@ ${getStyles()}
         lapNotifyFired = false;   // 停止時に警告状態をリセット
         updateTimerDisplay(pauseSec);
         $("btnTimerStop").innerHTML = "タイマー<br>再開";
+        saveSession();
       };
 
       $("btnCopyHistory").onclick = () => {
@@ -1223,6 +1378,13 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
+v2.4.0 ...最終更新日 2026/07/09
+  - セッション自動保存・復元機能を追加
+    （電話着信や誤操作などでツールがdestroyを経由せず終了した場合、
+      32分以内であれば討伐数・タイマー・行データ等を自動復元）
+  - ホーム遷移・ツール切り替え等を経由した正常終了時は保存データを破棄
+  - 「全消去」ボタンでも保存データを合わせて破棄するよう修正
+
 v2.3.0 ...最終更新日 2026/06/27
   - お供経験値の設定の修正
   - 計算ロジックの修正（floor + fdBonus 方式）
@@ -1343,6 +1505,9 @@ v1.1.7
       })();
 
       updateUI(true);
+
+      restoreSessionIfCrashed();   // ② 前回 destroy を経由せず終了していたら復元する
+      markActive();                 // 今回のセッションを「起動中」としてマークする
     }
 
     // ── 公開インターフェース ─────────────────────────────────────────────
@@ -1350,6 +1515,7 @@ v1.1.7
       render,
       destroy() {
         if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
+        clearSession();   // 正常な離脱（destroyを経由）なので、復元対象からは外す
         startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
         killCount = calcLockedUntil = 0;
         lapNotifyFired = jobBtnLocked = false;

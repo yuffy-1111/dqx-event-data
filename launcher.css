@@ -623,7 +623,8 @@ body.dark-mode .footer-install-link:hover {
 }
 
 /* 格納状態を強制的に復元するためのユーティリティクラス */
-body.sidebar-hidden .tool-menu-sidebar {
+body.sidebar-hidden .tool-menu-sidebar,
+body.sidebar-hidden .tool-menu-bottom {
     display: none !important;
 }
 body.sidebar-hidden .sidebar-float-btn {
@@ -730,8 +731,17 @@ body.dark-mode .sidebar-float-btn:hover {
         padding-bottom: 10px;
     }
 
+    /* PC用の右辺中央配置ではなく、下部ツールバー(.tool-menu-bottom)と被らない
+       右下に再配置する。以前はモバイルで強制非表示にしていたが、
+       モバイルにもツールバー格納機能を追加したため復帰ボタンとして使用する。 */
     .sidebar-float-btn {
-        display: none !important;
+        top: auto;
+        bottom: 90px;
+        right: 12px;
+        transform: none;
+    }
+    .sidebar-float-btn:hover {
+        transform: scale(1.05);
     }
 }
 

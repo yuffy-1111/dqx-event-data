@@ -11,16 +11,16 @@
                     <div class="help-toc">
                         <h3>📑 目次</h3>
                         <ul>
-                            <li><a href="#checker">コンテンツチェッカー</a></li>
-                            <li><a href="#expmercenary">傭兵用多機能ツール</a></li>
-                            <li><a href="#oldver">傭兵用多機能ツール旧ver</a></li>
+                            <li><a href="#checker">進捗チェッカー</a></li>
+                            <li><a href="#expmercenary">傭兵ログトラッカー</a></li>
+                            <li><a href="#oldver">傭兵ログトラッカー旧ver</a></li>
                             <li><a href="#install">アプリの使い方</a></li>
                             <li><a href="#settings">設定</a></li>
                             <li><a href="#qa">Q&amp;A</a></li>
                         </ul>
                     </div>
                     <div id="checker" class="help-section">
-                        <h3>📋 コンテンツチェッカー</h3>
+                        <h3>📋 進捗チェッカー</h3>
                         <ul>
                             <li>日課、週課など周期的なコンテンツの進捗を管理するツールです。</li>
                             <li>画面左上のテキストボックスにキャラクター名を入力し、カラーを選択することができます。<br>
@@ -32,7 +32,7 @@
                         </ul>
                     </div>
                     <div id="expmercenary" class="help-section">
-                        <h3>⚔️ 傭兵用多機能ツール</h3>
+                        <h3>⚔️ 傭兵ログトラッカー</h3>
                         <ul>
                             <li>デュラハーン等の傭兵に使うための経験値計算・タイマー等を提供するツールです。</li>
                             <li>モンスター名、アイテムのオプションを選択することで自動的に選択中のモンスターの最適な呼び数が選択されます。<br>
@@ -46,9 +46,9 @@
                         </ul>
                     </div>
                     <div id="oldver" class="help-section">
-                        <h3>📜 傭兵用多機能ツール旧ver</h3>
+                        <h3>📜 傭兵ログトラッカー旧ver</h3>
                         <ul>
-                            <li>傭兵用多機能ツールの旧verです。主にはてなブログ時代のHTMLプレビューとして動作させることが可能です。</li>
+                            <li>傭兵ログトラッカーの旧verです。主にはてなブログ時代のHTMLプレビューとして動作させることが可能です。</li>
                             <li>古いverのため不具合が残っている場合があります。</li>
                         </ul>
                     </div>

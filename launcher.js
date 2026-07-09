@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.0.0s';
+const APP_VERSION = '1.1.0s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -11,6 +11,72 @@ function dqxGetJSTDateKey() {
     const jst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
     if (jst.getHours() < 6) jst.setDate(jst.getDate() - 1);
     return `${jst.getFullYear()}-${jst.getMonth() + 1}-${jst.getDate()}`;
+}
+
+// このタブ・セッションを開いた（または最後にチェックした）時点のJST日付キー。
+// PWAをスタンドアロンで開きっぱなしにしたまま6時を跨いだ場合、
+// 起動時1回きりのチェックだけでは日課リセットや各種スナップショットが
+// 更新されないままになる。ツール遷移のたびに軽量に再評価し、
+// 日付が変わっていたらキャッシュクリア込みで強制的に再読み込みする。
+const SESSION_DATE_KEY = 'dqx_session_date_key';
+(function initSessionDateKey() {
+    if (!sessionStorage.getItem(SESSION_DATE_KEY)) {
+        sessionStorage.setItem(SESSION_DATE_KEY, dqxGetJSTDateKey());
+    }
+})();
+
+function dqxCheckDateRollover() {
+    const nowKey  = dqxGetJSTDateKey();
+    const seenKey = sessionStorage.getItem(SESSION_DATE_KEY);
+    if (seenKey && seenKey !== nowKey) {
+        window.dqxShowToast?.(
+            '日付が変わりました（6時リセット）。最新の状態にするため再読み込みします。',
+            { duration: 2500 }
+        );
+        sessionStorage.setItem(SESSION_DATE_KEY, nowKey);
+        setTimeout(() => {
+            if (typeof window.clearDqxCachesAndReload === 'function') {
+                window.clearDqxCachesAndReload();
+            } else {
+                location.reload();
+            }
+        }, 2600);
+        return true;
+    }
+    sessionStorage.setItem(SESSION_DATE_KEY, nowKey);
+    return false;
+}
+
+// ========== HTMLエスケープ ==========
+// tools-manifest.json / release-notes.json 由来の文字列を innerHTML に差し込む箇所で使用。
+// 現状は自リポジトリ管理の同一オリジンJSONのみが対象だが、
+// checker.js 側（innerText徹底）と防御水準を揃えるため一貫してエスケープする。
+function dqxEscapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+// tool.name / tool.desc は改行目的で意図的に <br> を含む値がある
+// （例: "傭兵ログトラッカー<br>旧ver"）。単純に dqxEscapeHtml すると
+// <br> まで文字列として表示されてしまうため、<br> だけは残しつつ
+// それ以外はエスケープする。
+function dqxEscapeHtmlKeepBr(str) {
+    return String(str ?? '')
+        .split(/<br\s*\/?>/i)
+        .map(dqxEscapeHtml)
+        .join('<br>');
+}
+
+// ========== ローディング画像（起動時スプラッシュ／ツール切り替え時 共通） ==========
+const DQX_LOADING_IMAGES = [
+    './images/dqx_loading.jpg',
+    './images/dqx_loading2.jpg',
+    './images/dqx_loading3.jpg',
+    './images/dqx_loading4.jpg',
+    './images/dqx_loading5.jpg',
+];
+function dqxRandomLoadingImage() {
+    return DQX_LOADING_IMAGES[Math.floor(Math.random() * DQX_LOADING_IMAGES.length)];
 }
 
 // ========== バックグラウンドコンテンツチェック ==========
@@ -48,16 +114,10 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     }
 
     async function runChecks() {
-        const today   = dqxGetJSTDateKey();
-        const checked = localStorage.getItem(KEY_CHECK_DATE);
-
-        if (checked === today) {
-            try {
-                const saved = JSON.parse(localStorage.getItem(KEY_BADGES) || '{}');
-                Object.assign(window.DQX_CARD_BADGES, saved);
-            } catch(e) {}
-            return window.DQX_CARD_BADGES;
-        }
+        // 以前は「1日1回」に制限していたが、起動時スプラッシュを毎回表示する
+        // 仕様に合わせ、こちらも毎回の起動時にチェックするよう変更。
+        // （同日中に内容が更新された場合でもバッジに反映されるようにするため）
+        const today = dqxGetJSTDateKey();
 
         const prevSnaps  = loadToolSnaps();
         const newSnaps   = {};
@@ -102,37 +162,28 @@ window.DQX_BG_CHECK_PROMISE = (function() {
             }
         } catch(e) {}
 
+        // 前回チェック時点で立っていたバッジのうち、まだ開かれていない（クリアされていない）
+        // ものは維持する。今回の差分で新たに検出したバッジと合成する。
+        try {
+            const prevBadges = JSON.parse(localStorage.getItem(KEY_BADGES) || '{}');
+            Object.assign(window.DQX_CARD_BADGES, prevBadges);
+        } catch(e) {}
+        Object.assign(window.DQX_CARD_BADGES, badges);
+
         saveToolSnaps(newSnaps);
         try { localStorage.setItem(KEY_CHECK_DATE, today); } catch(e) {}
-        try { localStorage.setItem(KEY_BADGES, JSON.stringify(badges)); } catch(e) {}
-        Object.assign(window.DQX_CARD_BADGES, badges);
+        try { localStorage.setItem(KEY_BADGES, JSON.stringify(window.DQX_CARD_BADGES)); } catch(e) {}
         return window.DQX_CARD_BADGES;
     }
 
     return runChecks();
 })();
 
-// ========== ローディング画面 ==========
+// ========== ローディング画面（起動時スプラッシュ） ==========
+// 毎回のアプリ起動時（通常起動・バージョン不一致や6時跨ぎによる強制リロード後の
+// 再起動を含む）に必ず表示する。画像はプリキャッシュ済みなので待ち時間は発生しない。
 (function() {
-    const IMAGES = [
-        './images/dqx_loading.jpg',
-        './images/dqx_loading2.jpg',
-        './images/dqx_loading3.jpg',
-        './images/dqx_loading4.jpg',
-        './images/dqx_loading5.jpg',
-    ];
-
-    const today  = dqxGetJSTDateKey();
-    const SS_KEY = 'dqx_loading_shown_date';
-    const LS_KEY = 'dqx_loading_shown_ls';
-
-    if (sessionStorage.getItem(SS_KEY) === today) return;
-    if (localStorage.getItem(LS_KEY) === today) {
-        sessionStorage.setItem(SS_KEY, today);
-        return;
-    }
-
-    const img = IMAGES[Math.floor(Math.random() * IMAGES.length)];
+    const img = dqxRandomLoadingImage();
 
     const overlay = document.createElement('div');
     overlay.id    = 'dqx-loading-overlay';
@@ -159,9 +210,6 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     } else {
         document.addEventListener('DOMContentLoaded', () => document.body.appendChild(overlay));
     }
-
-    sessionStorage.setItem(SS_KEY, today);
-    localStorage.setItem(LS_KEY, today);
 
     function closeOverlay() {
         if (!overlay.parentNode) return;
@@ -285,8 +333,9 @@ const DQXTools = {
             'dqx_bg_checker_snap',
             'dqx_bg_check_date',
             'dqx_bg_badges',
-            // ローディング画面表示日
-            'dqx_loading_shown_ls',
+            // 傭兵ログトラッカー：クラッシュ復旧用セッション保存
+            'dqx_expm_session',
+            'dqx_expm_active',
         ];
         for (let i = localStorage.length - 1; i >= 0; i--) {
             const key = localStorage.key(i);
@@ -303,7 +352,7 @@ const DQXTools = {
             }
         }
 
-        const allowedSession = ['dqx_reload_count', 'dqx_test_token', 'dqx_loading_shown_date'];
+        const allowedSession = ['dqx_reload_count', 'dqx_test_token', 'dqx_session_date_key'];
         for (let i = sessionStorage.length - 1; i >= 0; i--) {
             const key = sessionStorage.key(i);
             if (!key) continue;
@@ -409,9 +458,9 @@ const DQXTools = {
                      data-tool-id="${id}"
                      data-requires-token="${tool.requiresToken || false}">
                     ${badgeHtml}
-                    <div class="tool-card-icon">${tool.icon || '🔧'}</div>
-                    <div class="tool-card-name">${tool.name}</div>
-                    <div class="tool-card-desc">${tool.desc || ''}</div>
+                    <div class="tool-card-icon">${dqxEscapeHtml(tool.icon || '🔧')}</div>
+                    <div class="tool-card-name">${dqxEscapeHtmlKeepBr(tool.name)}</div>
+                    <div class="tool-card-desc">${dqxEscapeHtmlKeepBr(tool.desc || '')}</div>
                 </div>
             `;
         }).join('');
@@ -660,12 +709,12 @@ const DQXTools = {
 
         const open = (notes) => {
             const notesHtml = (notes || []).map((entry) => {
-                const items = (entry.notes || []).map((n) => '<li>' + n + '</li>').join('');
+                const items = (entry.notes || []).map((n) => '<li>' + dqxEscapeHtml(n) + '</li>').join('');
                 return (
                     '<div class="rn-entry">'
                     + '<div class="rn-header">'
-                    + '<span class="rn-version">v' + entry.version + '</span>'
-                    + '<span class="rn-date">' + entry.date + '</span>'
+                    + '<span class="rn-version">v' + dqxEscapeHtml(entry.version) + '</span>'
+                    + '<span class="rn-date">' + dqxEscapeHtml(entry.date) + '</span>'
                     + '</div>'
                     + '<ul class="rn-list">' + items + '</ul>'
                     + '</div>'
@@ -717,7 +766,7 @@ const DQXTools = {
         const menuEntries  = Object.entries(this.tools).filter(([, tool]) => !tool.hideInMenu);
         const menuButtons  = menuEntries.map(([id, tool]) => `
             <button class="tool-menu-btn ${this.currentTool === id ? 'active' : ''}" data-tool-id="${id}">
-                ${tool.icon || '🔧'}<span class="menu-btn-label">${tool.name}</span>
+                ${dqxEscapeHtml(tool.icon || '🔧')}<span class="menu-btn-label">${dqxEscapeHtmlKeepBr(tool.name)}</span>
             </button>
         `).join('');
 
@@ -728,21 +777,36 @@ const DQXTools = {
         menuBar.id     = 'tool-menu-bar';
 
         if (isMobile) {
-            menuBar.className = 'tool-menu-bottom';
+            const isHidden     = !this.sidebarVisible;
+            menuBar.className  = 'tool-menu-bottom';
+            menuBar.style.display = isHidden ? 'none' : '';
             menuBar.innerHTML = `
                 <div class="tool-menu-scroll">${menuButtons}</div>
                 <div class="tool-menu-fixed">
                     <button class="tool-menu-btn home-btn" data-action="home">🏠<span class="menu-btn-label">ホーム</span></button>
+                    <button class="tool-menu-btn collapse-btn" data-action="toggle-sidebar">▼<span class="menu-btn-label">閉じる</span></button>
                 </div>
             `;
             document.body.appendChild(menuBar);
-            menuBar.querySelector('[data-action="home"]').onclick  = () => this.goHome();
+            menuBar.querySelector('[data-action="home"]').onclick           = () => this.goHome();
+            menuBar.querySelector('[data-action="toggle-sidebar"]').onclick = () => this.toggleSidebar();
             menuBar.querySelectorAll('.tool-menu-scroll .tool-menu-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const toolId = btn.dataset.toolId;
                     if (toolId && this.currentTool !== toolId) this.loadTool(toolId);
                 };
             });
+
+            if (isHidden) {
+                const floatBtn       = document.createElement('button');
+                floatBtn.id          = 'sidebar-float-toggle';
+                floatBtn.className   = 'sidebar-float-btn';
+                floatBtn.textContent = '▲';
+                floatBtn.title       = 'ツールバーを表示';
+                floatBtn.style.display = 'flex';
+                floatBtn.onclick     = () => this.toggleSidebar();
+                document.body.appendChild(floatBtn);
+            }
         } else {
             const isHidden     = !this.sidebarVisible;
             menuBar.className  = 'tool-menu-sidebar';
@@ -783,7 +847,7 @@ const DQXTools = {
         const toolContainer = document.getElementById('dqx-tool-container');
         if (!toolContainer) return;
         if (this.isMobile()) {
-            toolContainer.style.paddingBottom = '70px';
+            toolContainer.style.paddingBottom = this.sidebarVisible ? '70px' : '0';
             toolContainer.style.paddingRight  = '0';
         } else {
             toolContainer.style.paddingBottom = '0';
@@ -875,6 +939,10 @@ const DQXTools = {
         const tool = this.tools[toolId];
         if (!tool || this.currentTool === toolId) return;
 
+        // 6時跨ぎ（JST日付ロールオーバー）を検知したら、以降の処理はせず
+        // キャッシュクリア込みの再読み込みに委ねる（アプデ蓄積防止）
+        if (dqxCheckDateRollover()) return;
+
         // バッジクリア
         if (window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[toolId]) {
             delete window.DQX_CARD_BADGES[toolId];
@@ -937,6 +1005,9 @@ const DQXTools = {
     },
 
     goHome: function() {
+        // 6時跨ぎ検知（ホームへの遷移時にも同様にチェックする）
+        if (dqxCheckDateRollover()) return;
+
         this.destroyCurrentTool();
         document.getElementById('tool-menu-bar')?.remove();
         document.getElementById('sidebar-float-toggle')?.remove();

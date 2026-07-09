@@ -14,6 +14,19 @@
     let selectedUrl = '';
     let currentContainerSelector = '';
 
+    // ver1.4.1のみ、ダークモード切り替えをツール内で自己完結的にlocalStorageへ
+    // 保存する実装になっている（本来は他バージョン同様、ブログヘッダー側の
+    // ダークモード制御に追従すべきところ、当時ツール内に直接組み込んでしまった経緯）。
+    // アーカイブとして凍結しこのファイル自体は修正しない方針のため、
+    // sandbox側でallow-same-originを残して動作を維持する。
+    // allow-same-originとallow-scriptsの同時指定はsandboxの隔離を実質無効化するため、
+    // 必要なもの以外はallow-scriptsのみに絞る。
+    const NEEDS_SAME_ORIGIN = ['ver141.html'];
+    function getSandboxAttr(url) {
+        const needsSameOrigin = NEEDS_SAME_ORIGIN.some((name) => url.endsWith(name));
+        return needsSameOrigin ? 'allow-same-origin allow-scripts' : 'allow-scripts';
+    }
+
     // ★ destroy（先に定義）
     const destroy = function() {
         if (currentIframe) {
@@ -41,7 +54,7 @@
             if (currentIframe) currentIframe.remove();
             const iframe = document.createElement('iframe');
             iframe.src = url;
-            iframe.sandbox = 'allow-same-origin allow-scripts';
+            iframe.sandbox = getSandboxAttr(url);
             iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
             previewArea.appendChild(iframe);
             currentIframe = iframe;
@@ -118,7 +131,7 @@
             if (currentIframe) currentIframe.remove();
             const iframe = document.createElement('iframe');
             iframe.src = url;
-            iframe.sandbox = 'allow-same-origin allow-scripts';
+            iframe.sandbox = getSandboxAttr(url);
             iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
             previewArea.appendChild(iframe);
             currentIframe = iframe;

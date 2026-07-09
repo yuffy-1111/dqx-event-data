@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.0.0s';
+const CACHE_VERSION = '1.1.0s';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -29,7 +29,14 @@ const PRECACHE_URLS = [
     './tools/version_selector.js',
     './tools/help.js',
     './tools/settings.js',
-    './tools/install.js'
+    './tools/install.js',
+    // 起動時ローディング画面用の画像。ここに含めないと初回表示時に
+    // 通常のHTTPリクエストで取得することになり、表示までの空白時間が生じるため。
+    './images/dqx_loading.jpg',
+    './images/dqx_loading2.jpg',
+    './images/dqx_loading3.jpg',
+    './images/dqx_loading4.jpg',
+    './images/dqx_loading5.jpg'
 ];
 
 const NEVER_CACHE_PATTERNS = [

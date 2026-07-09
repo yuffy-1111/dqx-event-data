@@ -1,4 +1,4 @@
-// ==========コンテンツチェッカー==========
+// ========== 進捗チェッカー ==========
 
 (function (global) {
 
@@ -345,12 +345,15 @@
     return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   }
 
-  /** 実効日から "YYYY_週番号" 形式のキーを返す */
+  /**
+   * "週" のキーを返す。
+   * 固定タスクの週課リセット（getLastResetDate('weekly', ...) の 2026/4/12 6:00 起点・
+   * 168時間周期）と同じ基準を使うことで、期間限定イベント側の週次判定とズレないようにする。
+   * 暦週（1/1起点）ではなく、実際のゲーム内週次リセット時刻そのものをキーにする。
+   */
   function getWeekKey(date) {
-    const d = getEffectiveDate(date);
-    const jan1 = new Date(d.getFullYear(), 0, 1);
-    const weekNum = Math.floor((d - jan1) / (7 * 86400000));
-    return `${d.getFullYear()}_${weekNum}`;
+    const lastReset = getLastResetDate('weekly', date);
+    return `w_${lastReset.getTime()}`;
   }
 
   /** "YYYY-M-D" 形式のキーを Date に戻す */
