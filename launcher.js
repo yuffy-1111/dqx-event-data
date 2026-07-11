@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.0s';
+const APP_VERSION = '1.1.1s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -97,6 +97,74 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     const CHECKER_EVENTS_URL = 'https://raw.githubusercontent.com/yuffy-1111/dqx-event-data/main/checker.json';
     const KEY_TOOL_SNAP    = 'dqx_bg_tool_snaps';
     const KEY_CHECKER_SNAP = 'dqx_bg_checker_snap';
+    const KEY_CHECKER_ACTIVE_IDS = 'dqx_bg_checker_active_ids';
+    const KEY_FIXED_RESET_NOTIFIED_DATE = 'dqx_bg_fixed_reset_notified_date';
+
+    // ========== 固定周期タスクのリセット境界チェック ==========
+    // checker.js 内の getLastResetDate と同じロジックをここに複製する。
+    // checker.js はチェッカーツールを開いたときにしか読み込まれないため、
+    // 起動時のバックグラウンドバッジチェックからは直接呼び出せない。
+    // 週課・パニガルム・ロスター・たそがれ・レモン・邪神・月課・石灰の
+    // いずれかが「今日」リセット境界を迎えている場合、日課以外の更新として
+    // オレンジバッジ対象にする（checker.json 側のイベント変化とは別枠）。
+    const RESET_HOUR = 6;
+    const FIXED_NONDAILY_TASKS = ['weekly', 'pani', 'roster', 'tasogare', 'lemon', 'jashin', 'monthly', 'sekkai'];
+
+    function dqxGetEffectiveDate(date) {
+        const d = new Date(date);
+        if (d.getHours() < RESET_HOUR) d.setDate(d.getDate() - 1);
+        d.setHours(RESET_HOUR, 0, 0, 0);
+        return d;
+    }
+
+    function dqxGetLastFixedResetDate(taskId, targetDate) {
+        const target = dqxGetEffectiveDate(targetDate);
+        const year   = target.getFullYear();
+        const month  = target.getMonth();
+        const day    = target.getDate();
+
+        switch (taskId) {
+            case 'weekly': {
+                const base  = new Date(2026, 3, 12, 6, 0, 0);
+                const hours = (target - base) / (1000 * 60 * 60);
+                return new Date(base.getTime() + Math.floor(hours / 168) * 168 * 60 * 60 * 1000);
+            }
+            case 'pani': {
+                const base  = new Date(2026, 3, 12, 6, 0, 0);
+                const hours = (target - base) / (1000 * 60 * 60);
+                return new Date(base.getTime() + Math.floor(hours / 72) * 72 * 60 * 60 * 1000);
+            }
+            case 'roster':
+            case 'tasogare':
+            case 'lemon':
+                return day >= 15
+                    ? new Date(year, month, 15, 6, 0, 0)
+                    : new Date(year, month, 1, 6, 0, 0);
+            case 'jashin': {
+                if (day >= 25) return new Date(year, month, 25, 6, 0, 0);
+                if (day >= 10) return new Date(year, month, 10, 6, 0, 0);
+                const prevMonthEnd = new Date(year, month, 0);
+                return new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 25, 6, 0, 0);
+            }
+            case 'monthly':
+                return new Date(year, month, 1, 6, 0, 0);
+            case 'sekkai': {
+                if (day >= 10) return new Date(year, month, 10, 6, 0, 0);
+                const prevMonthEnd = new Date(year, month, 0);
+                return new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 10, 6, 0, 0);
+            }
+            default:
+                return target;
+        }
+    }
+
+    /** 固定周期タスクのいずれかが「今日」リセット境界を迎えているか */
+    function dqxHasFixedTaskResetToday(now) {
+        const todayEffective = dqxGetEffectiveDate(now).getTime();
+        return FIXED_NONDAILY_TASKS.some(
+            (id) => dqxGetLastFixedResetDate(id, now).getTime() === todayEffective
+        );
+    }
     const KEY_CHECK_DATE   = 'dqx_bg_check_date';
     const KEY_BADGES       = 'dqx_bg_badges';
 
@@ -137,30 +205,76 @@ window.DQX_BG_CHECK_PROMISE = (function() {
             } catch(e) {}
         }));
 
+        // ③ 固定周期タスク（週課・パニガルム・ロスター・たそがれ・レモン・邪神・
+        // 月課・石灰）のいずれかが「今日」リセット境界を迎えているか。
+        // これは checker.json のフェッチとは無関係にローカルな日付計算のみで
+        // 判定できるため、オフラインでも機能する。「6時基準で毎日初回に」
+        // 判定し、同じ日に既に通知済みなら再度は立てない。
+        const now      = new Date();
+        const todayKey = dqxGetJSTDateKey();
+        const fixedResetToday    = dqxHasFixedTaskResetToday(now);
+        const prevFixedNotifyKey = localStorage.getItem(KEY_FIXED_RESET_NOTIFIED_DATE);
+        const fixedResetIsNew    = fixedResetToday && prevFixedNotifyKey !== todayKey;
+        if (fixedResetToday) {
+            try { localStorage.setItem(KEY_FIXED_RESET_NOTIFIED_DATE, todayKey); } catch(e) {}
+        }
+
         try {
             const res = await fetch(CHECKER_EVENTS_URL, { cache: 'no-store' });
             if (res.ok) {
                 const data     = await res.json();
                 const snapshot = JSON.stringify(data);
                 const prevSnap = localStorage.getItem(KEY_CHECKER_SNAP);
+
+                // ① checker.json のファイル内容そのものの変更（管理者が追加・編集した場合）
+                let contentChanged = false;
                 if (!isFirstRun && prevSnap && prevSnap !== snapshot) {
-                    // 日課以外（非 daily）のイベントに変化がある場合のみオレンジバッジ
-                    // daily のみの変化はバッジなし
-                    let nonDailyChanged = false;
                     try {
                         const prev = JSON.parse(prevSnap);
                         const sig = (evts) => (evts || [])
                             .filter(e => e.resetType !== 'daily')
                             .map(e => e.id + '|' + e.endDateTime)
                             .sort().join(',');
-                        nonDailyChanged = sig(prev.events) !== sig(data.events);
-                    } catch(e) { nonDailyChanged = true; }
-                    if (nonDailyChanged) badges['Checker'] = 'checker-nondaily';
-                    // daily のみ変化 → バッジなし（何もしない）
+                        contentChanged = sig(prev.events) !== sig(data.events);
+                    } catch(e) { contentChanged = true; }
                 }
-                try { localStorage.setItem(KEY_CHECKER_SNAP, snapshot); } catch(e) {}
+
+                // ② 「今アクティブな日課以外イベント」の集合が前回チェック時から
+                // 変化したか。checker.json 自体が変わらなくても、
+                // startDateTime/endDateTime を迎えて日々アクティブなイベントの
+                // 顔ぶれは変わるため、①だけでは「当日になっても通知が出ない」
+                // イベントが発生していた。こちらも別途検知する。
+                const activeIds = (data.events || [])
+                    .filter(e => e.resetType !== 'daily')
+                    .filter(e => {
+                        const start = new Date(e.startDateTime || e.startDate);
+                        const end   = new Date(e.endDateTime   || e.endDate);
+                        return !isNaN(start) && !isNaN(end) && now >= start && now <= end;
+                    })
+                    .map(e => e.id)
+                    .sort()
+                    .join(',');
+                const prevActiveIds    = localStorage.getItem(KEY_CHECKER_ACTIVE_IDS);
+                const activeSetChanged = (prevActiveIds !== null) && (prevActiveIds !== activeIds);
+
+                if (!isFirstRun && (contentChanged || activeSetChanged || fixedResetIsNew)) {
+                    badges['Checker'] = 'checker-nondaily';
+                }
+
+                try {
+                    localStorage.setItem(KEY_CHECKER_SNAP, snapshot);
+                    localStorage.setItem(KEY_CHECKER_ACTIVE_IDS, activeIds);
+                } catch(e) {}
+            } else if (!isFirstRun && fixedResetIsNew) {
+                // checker.json 取得に失敗しても、固定周期タスクのリセットは
+                // ローカル計算のみで判定できるためバッジは立てる
+                badges['Checker'] = 'checker-nondaily';
             }
-        } catch(e) {}
+        } catch(e) {
+            if (!isFirstRun && fixedResetIsNew) {
+                badges['Checker'] = 'checker-nondaily';
+            }
+        }
 
         // 前回チェック時点で立っていたバッジのうち、まだ開かれていない（クリアされていない）
         // ものは維持する。今回の差分で新たに検出したバッジと合成する。
@@ -175,6 +289,10 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         try { localStorage.setItem(KEY_BADGES, JSON.stringify(window.DQX_CARD_BADGES)); } catch(e) {}
         return window.DQX_CARD_BADGES;
     }
+
+    // PWAをバックグラウンドから復帰した際などに、フルリロードなしで
+    // 再実行できるよう公開する（index.html の visibilitychange ハンドラから使用）
+    window.dqxRunBackgroundChecks = runChecks;
 
     return runChecks();
 })();
@@ -331,6 +449,8 @@ const DQXTools = {
             // バックグラウンドチェック関連
             'dqx_bg_tool_snaps',
             'dqx_bg_checker_snap',
+            'dqx_bg_checker_active_ids',
+            'dqx_bg_fixed_reset_notified_date',
             'dqx_bg_check_date',
             'dqx_bg_badges',
             // 傭兵ログトラッカー：クラッシュ復旧用セッション保存

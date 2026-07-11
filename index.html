@@ -11,6 +11,20 @@
     <meta name="theme-color" content="#0066cc">
     <link rel="apple-touch-icon" href="./icons/icon-maskable-192.png">
     <link rel="stylesheet" href="launcher.css">
+    <script>
+        // スタンドアロン（ホーム画面に追加したアプリとして起動）かどうかを判定し、
+        // ブラウザのタブとして開いている場合にのみ .dqx-browser-mode を付与する。
+        // プルツーリフレッシュ防止CSSはこのクラスがある場合にのみ効く
+        // （スタンドアロンではその挙動自体が存在しないため不要）。
+        (function() {
+            const isStandalone =
+                window.matchMedia('(display-mode: standalone)').matches ||
+                window.navigator.standalone === true; // iOS Safari
+            if (!isStandalone) {
+                document.documentElement.classList.add('dqx-browser-mode');
+            }
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
         * {
@@ -115,7 +129,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.0s';
+        window.HTML_VERSION = '1.1.1s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -423,6 +437,64 @@
                     }, 1500);
                 });
             });
+
+        // ========== バックグラウンド復帰時の再チェック ==========
+        // PWAをホーム画面アイコンから開き直した場合、既にサスペンドされていた
+        // ページがそのままフォアグラウンドに戻るだけで、実際のページ再読み込み
+        // （index.html/launcher.js の再実行）が発生しないケースがある。
+        // その場合 launcher-ready 起点のバージョンチェックや、起動時1回きりの
+        // バッジ差分チェックが一切再実行されず、内容が更新されていても
+        // 手動でリロードするまで反映されない問題があった。
+        // visibilitychange で可視化を検知し、軽量な再チェック（バッジ差分）と
+        // バージョンチェックを行い、更新があればキャッシュクリア込みで
+        // 強制リロードする。
+        let dqxLastResumeCheckTs = Date.now();
+        async function dqxOnResume() {
+            const now = Date.now();
+            // 短時間の連続発火（タブ切り替えの繰り返し等）を間引く
+            if (now - dqxLastResumeCheckTs < 60000) return;
+            dqxLastResumeCheckTs = now;
+
+            // バッジ差分の再チェック（フルリロード不要・軽量）
+            try {
+                if (typeof window.dqxRunBackgroundChecks === 'function') {
+                    await window.dqxRunBackgroundChecks();
+                    // ホーム画面表示中なら再描画してバッジを反映する
+                    if (window.DQXTools && window.DQXTools.currentTool === null
+                        && typeof window.DQXTools.showLauncher === 'function') {
+                        window.DQXTools.showLauncher();
+                    }
+                }
+            } catch (e) {
+                console.warn('[resume] バッジ再チェック失敗', e);
+            }
+
+            // バージョンチェック（Safari PWA 等の強いキャッシュ対策も兼ねて
+            // 実際に fetch を試みる。更新があればフルリロード）
+            try {
+                await window.dqxCheckVersion();
+                if (window.DQX_NET_STATE === 'update') {
+                    window.dqxShowToast(
+                        '新しいバージョンが利用可能です。再読み込みします。',
+                        { duration: 2500 }
+                    );
+                    setTimeout(() => clearDqxCachesAndReload(), 2600);
+                    return;
+                }
+            } catch (e) {
+                console.warn('[resume] バージョンチェック失敗', e);
+            }
+
+            // 6時（JSTリセット）跨ぎの再チェック
+            // （ホーム画面に留まっている間は loadTool/goHome を経由しないため、
+            //   ここでも拾っておく）
+            if (typeof window.dqxCheckDateRollover === 'function') {
+                window.dqxCheckDateRollover();
+            }
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') dqxOnResume();
+        });
 
         // ========== メンテナンスモード ==========
         const START_DATE = new Date('2026-05-21T12:30:00');
