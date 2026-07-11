@@ -129,7 +129,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.1s';
+        window.HTML_VERSION = '1.1.2s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -547,6 +547,7 @@ function registerAllTools(manifestData) {
             desc:       tool.desc,
             url:        tool.url,
             renderFn:   tool.renderFn,
+            ver:        tool.ver,
             hideInMenu: !!tool.hideInMenu
         });
     });

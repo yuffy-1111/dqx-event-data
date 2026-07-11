@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.1s';
+const APP_VERSION = '1.1.2s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -1095,8 +1095,8 @@ const DQXTools = {
         document.body.appendChild(loadingDiv);
 
         try {
-            this.removeOldToolScripts(tool.url);
-            await this.loadScript(tool.url, tool.renderFn);
+            this.removeOldToolScripts(tool.url, tool.ver);
+            await this.loadScript(tool.url, tool.renderFn, tool.ver);
 
             const fn = tool.renderFn
                 .split('.')
@@ -1182,9 +1182,10 @@ const DQXTools = {
         document.getElementById('sidebar-float-toggle')?.remove();
     },
 
-    removeOldToolScripts: function(url) {
-        const cacheBustUrl = url + '?v=' + encodeURIComponent(APP_VERSION);
+    removeOldToolScripts: function(url, ver) {
+        const cacheBustUrl = url + '?v=' + encodeURIComponent(ver || APP_VERSION);
         document.querySelectorAll(`script[src="${cacheBustUrl}"]`).forEach((s) => s.remove());
+        document.querySelectorAll(`script[src^="${url}?v="]`).forEach((s) => s.remove());
         document.querySelectorAll(`script[src="${url}"]`).forEach((s) => s.remove());
     },
 
@@ -1192,7 +1193,7 @@ const DQXTools = {
         document.querySelectorAll('script[data-test-tool]').forEach((s) => s.remove());
     },
 
-    loadScript: function(url, renderFn) {
+    loadScript: function(url, renderFn, ver) {
         // renderFn のホワイトリスト確認
         if (renderFn && !isAllowedRenderFn(renderFn)) {
             return Promise.reject(new Error(`Blocked renderFn: ${renderFn}`));
@@ -1220,7 +1221,7 @@ const DQXTools = {
             }
         }
 
-        const cacheBustUrl = url + '?v=' + encodeURIComponent(APP_VERSION);
+        const cacheBustUrl = url + '?v=' + encodeURIComponent(ver || APP_VERSION);
         return new Promise((resolve, reject) => {
             if (document.querySelector(`script[src="${cacheBustUrl}"]`)) {
                 resolve();

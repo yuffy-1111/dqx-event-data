@@ -1,8 +1,26 @@
 /* ========== ランチャー共通スタイル ========== */
 html, body {
-    overscroll-behavior-y: contain;
+    /* overscroll-behavior-x（横方向のオーバースクロール）はスタンドアロン
+       アプリでも意図しないスワイプナビゲーションを防ぐため常に無効化する */
     overscroll-behavior-x: none;
     touch-action: manipulation;
+}
+
+/*
+ * 縦方向のプルツーリフレッシュ（画面を下に引っ張るとブラウザが自動で
+ * ページを再読み込みする機能）は、そもそも「ブラウザのタブとして開いている
+ * 場合」にのみ発生するブラウザ標準の挙動であり、ホーム画面に追加して
+ * スタンドアロンアプリとして起動した場合はこの挙動自体が存在しない。
+ * そのため、無条件に overscroll-behavior-y: none にする必要はなく、
+ * ブラウザタブ表示時（.dqx-browser-mode、JS側で判定して付与）にのみ
+ * 適用する。スタンドアロン時は元の contain のままにして、
+ * ネイティブのバウンド感を不要に殺さないようにする。
+ */
+html, body {
+    overscroll-behavior-y: contain;
+}
+html.dqx-browser-mode, body.dqx-browser-mode {
+    overscroll-behavior-y: none;
 }
 
 /* ----- ネットワーク状態インジケーター（ヘッダー内常設） ----- */

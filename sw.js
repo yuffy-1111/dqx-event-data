@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.1.1s';
+const CACHE_VERSION = '1.1.2s';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -30,6 +30,9 @@ const PRECACHE_URLS = [
     './tools/help.js',
     './tools/settings.js',
     './tools/install.js',
+    // 上記 tools/*.js はオフライン初回インストール用の保険。
+    // 実際の実行時リクエストは launcher.js が ?v=<tools-manifest.jsonのver> を
+    // 付けて行うため、そちらが正規のキャッシュキーとなる（sw.js側fetchハンドラ参照）。
     // 起動時ローディング画面用の画像。ここに含めないと初回表示時に
     // 通常のHTTPリクエストで取得することになり、表示までの空白時間が生じるため。
     './images/dqx_loading.jpg',
@@ -141,9 +144,13 @@ self.addEventListener('fetch', (event) => {
     // ===== cache-first, stale-while-revalidate =====
     // tools/*.js, icons/, launcher.css など
     // → キャッシュを即座に返しつつ、裏でネットワーク取得して次回用に更新
-    // index.html/launcher.jsのバージョン不一致で再読み込みが走ると、
-    // ここも一緒に最新キャッシュへ置き換わる
-    const normReq = new Request(normalizeUrl(req.url));
+    //
+    // 【重要】ここではクエリを剥がして正規化しない。
+    // launcher.js は tools-manifest.json の各ツール "ver" を ?v= に付けて
+    // スクリプトを読み込むため、verが変われば別URL＝別キャッシュキーとなり、
+    // 該当ツールだけ確実にキャッシュmiss→ネットワーク取得される。
+    // verが同じ間はヒットし続けるので、通常時の速度は変わらない。
+    const normReq = new Request(req.url);
     event.respondWith(
         caches.match(normReq).then((cached) => {
             const networkFetch = fetch(req)

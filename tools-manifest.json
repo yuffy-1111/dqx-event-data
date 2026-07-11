@@ -1,6 +1,6 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.1s",
+  "launcherVersion": "1.1.2s",
   "updatedAt": "2026-07-11",
   "tools": [
     {
@@ -10,6 +10,7 @@
       "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -19,6 +20,7 @@
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
       "renderFn": "Expmercenary.render",
+      "ver": "2.5.0",
       "cache": true
     },
     {
@@ -28,6 +30,7 @@
       "desc": "旧verセレクタ",
       "url": "./tools/version_selector.js",
       "renderFn": "VersionSelector.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -37,6 +40,7 @@
       "desc": "使い方<br>Q&A",
       "url": "./tools/help.js",
       "renderFn": "Help.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -46,6 +50,7 @@
       "desc": "キャッシュ<br>フィードバック",
       "url": "./tools/settings.js",
       "renderFn": "Settings.render",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
@@ -55,6 +60,7 @@
       "desc": "ホーム画面に<br>追加する方法",
       "url": "./tools/install.js",
       "renderFn": "Install.render",
+      "ver": "1.1.2s",
       "cache": true,
       "hideInMenu": true
     }
