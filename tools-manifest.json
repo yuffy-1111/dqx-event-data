@@ -30,7 +30,7 @@
       "desc": "旧verセレクタ",
       "url": "./tools/version_selector.js",
       "renderFn": "VersionSelector.render",
-      "ver": "1.1.2s",
+      "ver": "1.1.3s",
       "cache": true
     },
     {
