@@ -14,7 +14,7 @@
         { version: 'v2.4.0', date: '2026-07-09', url: './old_tools/ver240.js',  desc: '',                         type: 'module' },
         { version: 'v2.3.0', date: '2026-06-28', url: './old_tools/ver230.js',  desc: '',                         type: 'module' },
         { version: 'v2.1.0', date: '2026-06-19', url: './old_tools/ver210.js',  desc: '',                         type: 'module' },
-        { version: 'v1.5.5', date: '2026-05-xx', url: './old_tools/ver155b.js', desc: 'モジュール構造への移行版', type: 'module' },
+        { version: 'v1.5.5', date: '2026-05-xx', url: './old_tools/ver155b.js', desc: 'github移行版', type: 'module' },
 
         // ---- 完全独立HTML版（はてなブログ実装時代のアーカイブ。凍結・修正対象外） ----
         { version: 'v1.5.5', date: '2026-05-12', url: './old_tools/ver155.html', desc: 'はてなブログ版',       type: 'html' },
