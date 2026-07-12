@@ -1,12 +1,28 @@
 // ========== 傭兵ツール バージョンセレクタ（PC:小窓 / スマホ:画面置き換え） ==========
+// v2: type: 'html' | 'module' に対応。
+//   - 'html'   : 完全独立HTML（旧はてなブログ形式）。iframe.src でそのまま読み込む。
+//   - 'module' : tools/expmercenary.js 系のモジュールJS（window.Expmercenary.render(sel) を呼ぶ形式）。
+//                iframe.srcdoc に最小シェルHTMLを生成して読み込む。
+//
+// 今後バージョンが増えた場合の運用:
+//   1. old_tools/ に該当バージョンの .js（モジュール形式）を置く
+//   2. 下の VERSIONS 配列に { version, date, url, desc, type: 'module' } を1行追加する
+//   だけでよい。version_selector.js 本体の修正は不要。
 (function(global) {
     const VERSIONS = [
-        { version: 'v1.5.5', date: '2026-05-12', url: './old_tools/ver155.html', desc: 'はてなブログ版' },
-        { version: 'v1.4.5', date: '2026-04-xx', url: './old_tools/ver145.html', desc: '' },
-        { version: 'v1.4.1', date: '2026-04-xx', url: './old_tools/ver141.html', desc: 'ｳｪﾌﾞﾌｯｸ版(連携撤廃)' },
-        { version: 'v1.3.0', date: '2026-03-xx', url: './old_tools/ver130.html', desc: '' },
-        { version: 'v1.2.6', date: '2026-03-xx', url: './old_tools/ver126.html', desc: 'Blue Edition' },
-        { version: 'v1.1.7', date: '2026-02-xx', url: './old_tools/ver117.html', desc: '' }
+        // ---- モジュールJS版（現行アーキテクチャ。今後もここに追記していく） ----
+        { version: 'v2.4.0', date: '2026-07-09', url: './old_tools/ver240.js',  desc: '',                         type: 'module' },
+        { version: 'v2.3.0', date: '2026-06-28', url: './old_tools/ver230.js',  desc: '',                         type: 'module' },
+        { version: 'v2.1.0', date: '2026-06-19', url: './old_tools/ver210.js',  desc: '',                         type: 'module' },
+        { version: 'v1.5.5', date: '2026-05-xx', url: './old_tools/ver155b.js', desc: 'モジュール構造への移行版', type: 'module' },
+
+        // ---- 完全独立HTML版（はてなブログ実装時代のアーカイブ。凍結・修正対象外） ----
+        { version: 'v1.5.5', date: '2026-05-12', url: './old_tools/ver155.html', desc: 'はてなブログ版',       type: 'html' },
+        { version: 'v1.4.5', date: '2026-04-xx', url: './old_tools/ver145.html', desc: '',                     type: 'html' },
+        { version: 'v1.4.1', date: '2026-04-xx', url: './old_tools/ver141.html', desc: 'ｳｪﾌﾞﾌｯｸ版(連携撤廃)',  type: 'html' },
+        { version: 'v1.3.0', date: '2026-03-xx', url: './old_tools/ver130.html', desc: '',                     type: 'html' },
+        { version: 'v1.2.6', date: '2026-03-xx', url: './old_tools/ver126.html', desc: 'Blue Edition',         type: 'html' },
+        { version: 'v1.1.7', date: '2026-02-xx', url: './old_tools/ver117.html', desc: '',                     type: 'html' }
     ];
 
     let currentIframe = null;
@@ -22,20 +38,85 @@
     // allow-same-originとallow-scriptsの同時指定はsandboxの隔離を実質無効化するため、
     // 必要なもの以外はallow-scriptsのみに絞る。
     const NEEDS_SAME_ORIGIN = ['ver141.html'];
+
+    function findVersion(url) {
+        return VERSIONS.find(v => v.url === url);
+    }
+
     function getSandboxAttr(url) {
-        const needsSameOrigin = NEEDS_SAME_ORIGIN.some((name) => url.endsWith(name));
+        const version = findVersion(url);
+        const needsSameOrigin = NEEDS_SAME_ORIGIN.some((name) => url.endsWith(name))
+            || (version && (version.type === 'module' || version.type === 'html'));
         return needsSameOrigin ? 'allow-same-origin allow-scripts' : 'allow-scripts';
+    }
+
+    function applyDarkModeToIframe(iframe) {
+        if (!iframe || !iframe.contentDocument) return;
+        const isDark = document.body.classList.contains('dark-mode');
+        try {
+            iframe.contentDocument.body.classList.toggle('dark-mode', isDark);
+        } catch (_) {
+            // 同一オリジンでない場合や読み込み前は無視
+        }
+    }
+
+    const bodyClassObserver = new MutationObserver(() => {
+        if (currentIframe) {
+            applyDarkModeToIframe(currentIframe);
+        }
+    });
+    bodyClassObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    function buildModuleShell(url) {
+        const absoluteUrl = new URL(url, window.location.href).href;
+        const shellUrl = new URL('./old_tools/module_shell.html', window.location.href).href;
+        const encodedScript = encodeURIComponent(absoluteUrl);
+        return `${shellUrl}?script=${encodedScript}`;
     }
 
     // ★ destroy（先に定義）
     const destroy = function() {
-        if (currentIframe) {
-            currentIframe.remove();
-            currentIframe = null;
+        const iframeToDestroy = currentIframe;
+        currentIframe = null;
+        if (iframeToDestroy) {
+            try {
+                if (iframeToDestroy.contentWindow && iframeToDestroy.contentWindow.Expmercenary
+                    && typeof iframeToDestroy.contentWindow.Expmercenary.destroy === 'function') {
+                    iframeToDestroy.contentWindow.Expmercenary.destroy();
+                }
+            } catch (_) { /* クロスオリジン等で触れない場合は無視 */ }
+            try {
+                iframeToDestroy.remove();
+            } catch (_) {}
         }
+        const oldModal = document.getElementById('vs-pc-modal');
+        if (oldModal) oldModal.remove();
+        const oldOverlay = document.getElementById('vs-modal-overlay');
+        if (oldOverlay) oldOverlay.remove();
         isPreviewMode = false;
         selectedUrl = '';
     };
+
+    function mountIframe(container, url) {
+        if (currentIframe) {
+            try { currentIframe.remove(); } catch (_) {}
+            currentIframe = null;
+        }
+        const version = findVersion(url);
+        const iframe = document.createElement('iframe');
+        iframe.sandbox = getSandboxAttr(url);
+        iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
+
+        if (version && version.type === 'module') {
+            iframe.src = buildModuleShell(url);
+        } else {
+            iframe.src = url;
+        }
+
+        container.appendChild(iframe);
+        currentIframe = iframe;
+        return iframe;
+    }
 
     // ★ スマホ用：プレビュー画面を表示（ツールバーは残る）
     const showMobilePreview = function(container, url, versionName) {
@@ -51,24 +132,13 @@
 
         const previewArea = document.getElementById('vs-preview-area');
         if (previewArea) {
-            if (currentIframe) currentIframe.remove();
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.sandbox = getSandboxAttr(url);
-            iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
-            previewArea.appendChild(iframe);
-            currentIframe = iframe;
+            mountIframe(previewArea, url);
         }
 
         const backBtn = document.getElementById('vs-back-btn');
         if (backBtn) {
             backBtn.onclick = () => {
-                if (currentIframe) {
-                    currentIframe.remove();
-                    currentIframe = null;
-                }
-                isPreviewMode = false;
-                selectedUrl = '';
+                destroy();
                 render(currentContainerSelector);
             };
         }
@@ -116,37 +186,22 @@
             background: rgba(0,0,0,0.5);
             z-index: 9999;
         `;
-        overlay.onclick = () => {
-            modal.remove();
-            overlay.remove();
-            if (currentIframe) {
-                currentIframe.remove();
-                currentIframe = null;
-            }
+        const closeModal = () => {
+            try { modal.remove(); } catch (_) {}
+            try { overlay.remove(); } catch (_) {}
+            destroy();
         };
+        overlay.onclick = closeModal;
         document.body.appendChild(overlay);
 
         const previewArea = document.getElementById('vs-modal-preview');
         if (previewArea) {
-            if (currentIframe) currentIframe.remove();
-            const iframe = document.createElement('iframe');
-            iframe.src = url;
-            iframe.sandbox = getSandboxAttr(url);
-            iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
-            previewArea.appendChild(iframe);
-            currentIframe = iframe;
+            mountIframe(previewArea, url);
         }
 
         const closeBtn = document.getElementById('vs-close-modal');
         if (closeBtn) {
-            closeBtn.onclick = () => {
-                modal.remove();
-                overlay.remove();
-                if (currentIframe) {
-                    currentIframe.remove();
-                    currentIframe = null;
-                }
-            };
+            closeBtn.onclick = closeModal;
         }
     };
 
@@ -158,7 +213,7 @@
         // スマホでプレビューモード中なら表示を切り替え
         const isMobile = window.innerWidth <= 768;
         if (isMobile && isPreviewMode && selectedUrl) {
-            const version = VERSIONS.find(v => v.url === selectedUrl);
+            const version = findVersion(selectedUrl);
             showMobilePreview(container, selectedUrl, version ? version.version : '旧バージョン');
             return;
         }

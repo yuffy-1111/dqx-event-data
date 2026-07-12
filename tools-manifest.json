@@ -1,6 +1,6 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.2s",
+  "launcherVersion": "1.1.3s",
   "updatedAt": "2026-07-11",
   "tools": [
     {
@@ -66,8 +66,23 @@
     }
   ],
   "testTools": [
-    { "file": "testtool.js", "globalName": "DQtool", "name": "構成保存", "icon": "📊" },
-    { "file": "testtool2.js", "globalName": "DQtool2", "name": "テスト空枠", "icon": "💿" },
-    { "file": "testtool3.js", "globalName": "DQtool3", "name": "職人ツール", "icon": "🛠️" }
+    {
+      "file": "testtool.js",
+      "globalName": "DQtool",
+      "name": "構成保存",
+      "icon": "📊"
+    },
+    {
+      "file": "testtool2.js",
+      "globalName": "DQtool2",
+      "name": "テスト空枠",
+      "icon": "💿"
+    },
+    {
+      "file": "testtool3.js",
+      "globalName": "DQtool3",
+      "name": "職人ツール",
+      "icon": "🛠️"
+    }
   ]
 }

@@ -16,14 +16,59 @@
         // ブラウザのタブとして開いている場合にのみ .dqx-browser-mode を付与する。
         // プルツーリフレッシュ防止CSSはこのクラスがある場合にのみ効く
         // （スタンドアロンではその挙動自体が存在しないため不要）。
-        (function() {
+        window.DQX_IS_BROWSER_MODE = (function() {
             const isStandalone =
                 window.matchMedia('(display-mode: standalone)').matches ||
                 window.navigator.standalone === true; // iOS Safari
             if (!isStandalone) {
                 document.documentElement.classList.add('dqx-browser-mode');
             }
+            return !isStandalone;
         })();
+
+        // CSSの overscroll-behavior だけでは防げないケース
+        // （LINE・X等のSNS内蔵ブラウザは独自のプルツーリフレッシュ実装を持ち、
+        //   overscroll-behavior を無視することがある）への保険として、
+        // ブラウザタブ表示時のみ、画面最上部から下方向に引っ張る操作を
+        // touchmove レベルでも抑止する。
+        // スタンドアロン時はそもそもこの挙動が存在しないため何もしない。
+        if (window.DQX_IS_BROWSER_MODE) {
+            // タッチ位置から「実際にスクロールを担当する要素」を辿って探す。
+            // 単純に document 全体のスクロール位置だけで判定すると、
+            // row-history やモーダル内など、ページ内にネストした
+            // スクロール領域（overflow-y: auto）を誤って巻き込んで
+            // 邪魔してしまうため、タッチ対象の祖先を遡って
+            // 実際にスクロール可能な要素を特定する。
+            function dqxFindScrollableAncestor(el) {
+                let node = el;
+                while (node && node !== document.body && node !== document.documentElement) {
+                    const style = window.getComputedStyle(node);
+                    if ((style.overflowY === 'auto' || style.overflowY === 'scroll')
+                        && node.scrollHeight > node.clientHeight) {
+                        return node;
+                    }
+                    node = node.parentElement;
+                }
+                return document.scrollingElement || document.documentElement;
+            }
+
+            let dqxTouchStartY = 0;
+            let dqxTouchScroller = null;
+            document.addEventListener('touchstart', function(e) {
+                if (e.touches.length !== 1) return;
+                dqxTouchStartY = e.touches[0].clientY;
+                dqxTouchScroller = dqxFindScrollableAncestor(e.target);
+            }, { passive: true });
+            document.addEventListener('touchmove', function(e) {
+                if (e.touches.length !== 1 || !dqxTouchScroller) return;
+                const dy = e.touches[0].clientY - dqxTouchStartY;
+                // 下方向に引っ張っていて、かつ該当スクロール領域が
+                // 既に一番上（これ以上上にスクロールできない）の場合のみ抑止する。
+                if (dy > 0 && dqxTouchScroller.scrollTop <= 0) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <style>
@@ -129,7 +174,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.2s';
+        window.HTML_VERSION = '1.1.3s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;

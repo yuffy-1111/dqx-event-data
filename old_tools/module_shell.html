@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>旧バージョン読み込み</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #fff; font-family: sans-serif; }
+    #app { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const scriptParam = params.get('script');
+      if (!scriptParam) {
+        document.getElementById('app').innerHTML = '<p style="padding:12px;color:#c00">読み込み対象が指定されていません。</p>';
+        return;
+      }
+
+      const scriptUrl = new URL(scriptParam, window.location.href).href;
+      const script = document.createElement('script');
+      script.src = scriptUrl;
+      script.onerror = function() {
+        document.getElementById('app').innerHTML = '<p style="padding:12px;color:#c00">スクリプトの読み込みに失敗しました: ' + scriptUrl + '</p>';
+      };
+      script.onload = function() {
+        if (window.Expmercenary && typeof window.Expmercenary.render === 'function') {
+          window.Expmercenary.render('#app');
+        } else {
+          document.getElementById('app').innerHTML = '<p style="padding:12px;color:#c00">このバージョンの読み込みに失敗しました（window.Expmercenary が見つかりません）。</p>';
+        }
+      };
+      document.body.appendChild(script);
+    })();
+  </script>
+</body>
+</html>

@@ -19,7 +19,15 @@ html, body {
 html, body {
     overscroll-behavior-y: contain;
 }
-html.dqx-browser-mode, body.dqx-browser-mode {
+/*
+ * JSは <html> にしか .dqx-browser-mode を付与できない
+ * （<head> 実行時点では <body> がまだ存在しないため）。
+ * body.dqx-browser-mode という書き方だとbody側には永久にクラスが
+ * 付かず条件が成立しないので、子孫セレクタで html 側のクラスから
+ * body にも波及させる。
+ */
+html.dqx-browser-mode,
+html.dqx-browser-mode body {
     overscroll-behavior-y: none;
 }
 
