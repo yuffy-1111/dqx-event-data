@@ -1,5 +1,9 @@
 // ========== 設定ツール ==========
 (function(global) {
+    const STORAGE_KEYS = Object.freeze({
+        MANIFEST_VERSION: 'dqx_manifest_version'
+    });
+
     const Settings = {
         _beforeInstallHandler: null,
         _appInstalledHandler:  null,
@@ -273,7 +277,7 @@
 
                 const launcherVer = window.LAUNCHER_VERSION || '—';
                 const htmlVer     = window.HTML_VERSION     || '—';
-                const manifestVer = localStorage.getItem('dqx_manifest_version') || '—';
+                const manifestVer = localStorage.getItem(STORAGE_KEYS.MANIFEST_VERSION) || '—';
                 const match = (launcherVer !== '—' && htmlVer !== '—')
                     ? (launcherVer === htmlVer)
                     : null;

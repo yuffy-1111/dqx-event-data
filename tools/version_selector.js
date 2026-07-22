@@ -74,6 +74,13 @@
         return `${shellUrl}?script=${encodedScript}`;
     }
 
+    function createEl(tag, className, text) {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+    }
+
     // ★ destroy（先に定義）
     const destroy = function() {
         const iframeToDestroy = currentIframe;
@@ -120,28 +127,33 @@
 
     // ★ スマホ用：プレビュー画面を表示（ツールバーは残る）
     const showMobilePreview = function(container, url, versionName) {
-        container.innerHTML = `
-            <div class="vs-mobile-preview" style="display: flex; flex-direction: column; height: calc(100vh - 140px);">
-                <div style="display: flex; align-items: center; padding: 12px; background: #0066cc; color: white; gap: 12px; border-radius: 12px 12px 0 0;">
-                    <button id="vs-back-btn" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; cursor: pointer;">← 戻る</button>
-                    <span style="font-weight: bold;">${versionName}</span>
-                </div>
-                <div id="vs-preview-area" style="flex: 1; background: white; border-radius: 0 0 12px 12px; overflow: auto;"></div>
-            </div>
-        `;
+        const previewRoot = createEl('div', 'vs-mobile-preview');
+        previewRoot.style.cssText = 'display: flex; flex-direction: column; height: calc(100vh - 140px);';
 
-        const previewArea = document.getElementById('vs-preview-area');
-        if (previewArea) {
-            mountIframe(previewArea, url);
-        }
+        const header = document.createElement('div');
+        header.style.cssText = 'display: flex; align-items: center; padding: 12px; background: #0066cc; color: white; gap: 12px; border-radius: 12px 12px 0 0;';
+        const backBtn = document.createElement('button');
+        backBtn.id = 'vs-back-btn';
+        backBtn.style.cssText = 'background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; cursor: pointer;';
+        backBtn.textContent = '← 戻る';
+        backBtn.onclick = () => {
+            destroy();
+            render(currentContainerSelector);
+        };
+        const title = document.createElement('span');
+        title.style.fontWeight = 'bold';
+        title.textContent = versionName;
+        header.appendChild(backBtn);
+        header.appendChild(title);
 
-        const backBtn = document.getElementById('vs-back-btn');
-        if (backBtn) {
-            backBtn.onclick = () => {
-                destroy();
-                render(currentContainerSelector);
-            };
-        }
+        const previewArea = document.createElement('div');
+        previewArea.id = 'vs-preview-area';
+        previewArea.style.cssText = 'flex: 1; background: white; border-radius: 0 0 12px 12px; overflow: auto;';
+
+        previewRoot.appendChild(header);
+        previewRoot.appendChild(previewArea);
+        container.replaceChildren(previewRoot);
+        mountIframe(previewArea, url);
     };
 
     // ★ PC用：小窓（モーダル風）で表示
@@ -168,13 +180,25 @@
             flex-direction: column;
             overflow: hidden;
         `;
-        modal.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #0066cc; color: white;">
-                <span style="font-weight: bold;">📜 ${versionName}</span>
-                <button id="vs-close-modal" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">✕</button>
-            </div>
-            <div id="vs-modal-preview" style="flex: 1; background: white;"></div>
-        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #0066cc; color: white;';
+        const title = document.createElement('span');
+        title.style.fontWeight = 'bold';
+        title.textContent = `📜 ${versionName}`;
+        const closeBtn = document.createElement('button');
+        closeBtn.id = 'vs-close-modal';
+        closeBtn.style.cssText = 'background: none; border: none; color: white; font-size: 20px; cursor: pointer;';
+        closeBtn.textContent = '✕';
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+
+        const previewArea = document.createElement('div');
+        previewArea.id = 'vs-modal-preview';
+        previewArea.style.cssText = 'flex: 1; background: white;';
+
+        modal.appendChild(header);
+        modal.appendChild(previewArea);
         document.body.appendChild(modal);
 
         // 背面オーバーレイ
@@ -194,12 +218,10 @@
         overlay.onclick = closeModal;
         document.body.appendChild(overlay);
 
-        const previewArea = document.getElementById('vs-modal-preview');
         if (previewArea) {
             mountIframe(previewArea, url);
         }
 
-        const closeBtn = document.getElementById('vs-close-modal');
         if (closeBtn) {
             closeBtn.onclick = closeModal;
         }
@@ -222,28 +244,30 @@
         isPreviewMode = false;
         selectedUrl = '';
 
-        const versionRows = VERSIONS.map(v => `
-            <div class="version-item" data-url="${v.url}" data-version="${v.version}">
-                <div class="version-info">
-                    <strong>${v.version}</strong>
-                    ${v.desc ? `<span class="version-desc">${escapeHtml(v.desc)}</span>` : ''}
-                    <div class="version-date">${v.date}</div>
-                </div>
-                <button class="preview-btn">▶ 開く</button>
-            </div>
-        `).join('');
+        const root = createEl('div', 'vs-container');
+        const header = createEl('div', 'vs-header');
+        header.appendChild(createEl('h2', null, '📜 傭兵ツール 過去バージョン'));
+        header.appendChild(createEl('p', null, 'バージョンを選択して開く（PC:小窓 / スマホ:画面切替）'));
+        root.appendChild(header);
 
-        container.innerHTML = `
-            <div class="vs-container">
-                <div class="vs-header">
-                    <h2>📜 傭兵ツール 過去バージョン</h2>
-                    <p>バージョンを選択して開く（PC:小窓 / スマホ:画面切替）</p>
-                </div>
-                <div class="vs-list">
-                    ${versionRows}
-                </div>
-            </div>
-        `;
+        const list = createEl('div', 'vs-list');
+        VERSIONS.forEach((v) => {
+            const item = createEl('div', 'version-item');
+            item.dataset.url = v.url;
+            item.dataset.version = v.version;
+            const info = createEl('div', 'version-info');
+            info.appendChild(createEl('strong', null, v.version));
+            if (v.desc) {
+                info.appendChild(createEl('span', 'version-desc', v.desc));
+            }
+            info.appendChild(createEl('div', 'version-date', v.date));
+            const btn = createEl('button', 'preview-btn', '▶ 開く');
+            item.appendChild(info);
+            item.appendChild(btn);
+            list.appendChild(item);
+        });
+        root.appendChild(list);
+        container.replaceChildren(root);
 
         // スタイル追加（一度だけ）
         if (!document.getElementById('vs-style-final')) {
@@ -302,16 +326,6 @@
                 openVersion();
             };
             item.onclick = openVersion;
-        });
-    };
-
-    const escapeHtml = function(str) {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, m => {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
         });
     };
 

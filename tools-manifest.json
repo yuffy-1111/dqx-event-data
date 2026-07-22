@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.3s",
-  "updatedAt": "2026-07-11",
+  "launcherVersion": "1.1.4s",
+  "updatedAt": "2026-07-21",
   "tools": [
     {
       "id": "Checker",
@@ -10,7 +10,7 @@
       "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
-      "ver": "1.1.2s",
+      "ver": "1.2.1s",
       "cache": true
     },
     {
@@ -20,7 +20,7 @@
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
       "renderFn": "Expmercenary.render",
-      "ver": "2.5.0",
+      "ver": "2.5.1",
       "cache": true
     },
     {
@@ -30,7 +30,7 @@
       "desc": "旧verセレクタ",
       "url": "./tools/version_selector.js",
       "renderFn": "VersionSelector.render",
-      "ver": "1.1.3s",
+      "ver": "1.1.2s",
       "cache": true
     },
     {
