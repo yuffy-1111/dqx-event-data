@@ -275,7 +275,6 @@ body.dark-mode #manage-modal .manage-row {
     gap: 16px;
     flex: 1;
     margin-bottom: 32px;
-    align-content: start;
 }
 
 /* ===== カード内部の余白を完全撲滅 ===== */
