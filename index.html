@@ -179,19 +179,13 @@
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
 
-        // ========== Pull to Refresh 禁止 ==========
-        document.addEventListener('DOMContentLoaded', function() {
-            let touchStartY = 0;
-            document.addEventListener('touchstart', (e) => {
-                touchStartY = e.touches[0].clientY;
-            }, { passive: false });
-            document.addEventListener('touchmove', (e) => {
-                const touchY = e.touches[0].clientY;
-                if (touchY > touchStartY && window.scrollY === 0) {
-                    e.preventDefault();
-                }
-            }, { passive: false });
-        });
+        // Pull to Refresh 禁止は <head> 側の DQX_IS_BROWSER_MODE 判定つき
+        // touchmove ハンドラ（スクロール可能な祖先要素を辿って判定するもの）
+        // に一本化済み。ここにあった無条件版は、アプリ（standalone）表示時
+        // にも常に発動してしまい、かつスクロール可能な子要素の判定を持たず
+        // window.scrollY（ページ全体の位置）しか見ていなかったため、
+        // ツール内スクロール領域で下端まで行った後に上へ戻る操作まで誤って
+        // 抑制していた。この重複ハンドラが本来の症状の原因だったため削除。
 
         async function clearDqxCachesAndReload() {
             if ('caches' in window) {
