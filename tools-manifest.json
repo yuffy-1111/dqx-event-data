@@ -10,7 +10,7 @@
       "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
-      "ver": "1.2.1s",
+      "ver": "1.2.2s",
       "cache": true
     },
     {
