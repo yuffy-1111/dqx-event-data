@@ -17,6 +17,16 @@
                     <h2>⚙️ 設定</h2>
 
                     <div class="settings-card">
+                        <h3>📘 使い方ガイド</h3>
+                        <div class="button-group">
+                            <button id="showHomeGuideBtn" class="btn-info">ホーム画面のガイドを見る</button>
+                        </div>
+                        <p class="settings-note">
+                            ※ ホーム画面に移動して、各機能の説明を最初から表示します。
+                        </p>
+                    </div>
+
+                    <div class="settings-card">
                         <h3>🗑️ データ管理</h3>
                         <div class="button-group">
                             <button id="clearAllCache"    class="btn-danger">全キャッシュを削除</button>
@@ -182,6 +192,16 @@
                     <p>📁 キャッシュファイル: ${cacheCount} 件</p>
                     <p>💾 キャッシュサイズ: ${Math.round(cacheSize / 1024)} KB</p>
                 `;
+            }
+
+            // ----- 使い方ガイドをもう一度見る -----
+            const showHomeGuideBtn = document.getElementById('showHomeGuideBtn');
+            if (showHomeGuideBtn) {
+                showHomeGuideBtn.onclick = () => {
+                    if (window.DQXTools && typeof window.DQXTools.showHomeGuideForced === 'function') {
+                        window.DQXTools.showHomeGuideForced();
+                    }
+                };
             }
 
             // ----- 最新版を確認して更新 -----

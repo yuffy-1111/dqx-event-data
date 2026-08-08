@@ -1,20 +1,27 @@
 // ========== 傭兵ツール バージョンセレクタ（PC:小窓 / スマホ:画面置き換え） ==========
-// v2: type: 'html' | 'module' に対応。
+// v3: type: 'html' | 'module' に対応。
 //   - 'html'   : 完全独立HTML（旧はてなブログ形式）。iframe.src でそのまま読み込む。
-//   - 'module' : tools/expmercenary.js 系のモジュールJS（window.Expmercenary.render(sel) を呼ぶ形式）。
-//                iframe.srcdoc に最小シェルHTMLを生成して読み込む。
+//   - 'module' : tools/expmercenary.js 系のモジュールJS。
+//                iframe.srcdoc に <script src="..."></script> を含む最小HTMLを直接生成して埋め込み、
+//                iframe内で window[globalName].render(sel) を呼ぶ形式。
+//                （旧 module_shell.html はクエリ引数 ?script= を外部から任意指定できてしまい、
+//                  同一オリジン権限で任意スクリプトを実行される経路になり得たため廃止。
+//                  srcdoc方式は外部から読み込み対象を差し替える余地がない）
 //
 // 今後バージョンが増えた場合の運用:
 //   1. old_tools/ に該当バージョンの .js（モジュール形式）を置く
-//   2. 下の VERSIONS 配列に { version, date, url, desc, type: 'module' } を1行追加する
+//      このとき、ファイル末尾のグローバル公開名（例: global.Expmercenary = {...}）を
+//      他バージョンや現行版(window.Expmercenary)と重複しないよう
+//      一意な名前（例: ExpmercenaryV250）に変更してから配置すること。
+//   2. 下の VERSIONS 配列に { version, date, url, desc, type: 'module', globalName: '...' } を1行追加する
 //   だけでよい。version_selector.js 本体の修正は不要。
 (function(global) {
     const VERSIONS = [
         // ---- モジュールJS版（現行アーキテクチャ。今後もここに追記していく） ----
-        { version: 'v2.4.0', date: '2026-07-09', url: './old_tools/ver240.js',  desc: '',                         type: 'module' },
-        { version: 'v2.3.0', date: '2026-06-28', url: './old_tools/ver230.js',  desc: '',                         type: 'module' },
-        { version: 'v2.1.0', date: '2026-06-19', url: './old_tools/ver210.js',  desc: '',                         type: 'module' },
-        { version: 'v1.5.5', date: '2026-05-xx', url: './old_tools/ver155b.js', desc: 'github移行版', type: 'module' },
+        { version: 'v2.4.0', date: '2026-07-09', url: './old_tools/ver240.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV240' },
+        { version: 'v2.3.0', date: '2026-06-28', url: './old_tools/ver230.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV230' },
+        { version: 'v2.1.0', date: '2026-06-19', url: './old_tools/ver210.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV210' },
+        { version: 'v1.5.5', date: '2026-05-xx', url: './old_tools/ver155b.js', desc: 'github移行版', type: 'module', globalName: 'ExpmercenaryV155' },
 
         // ---- 完全独立HTML版（はてなブログ実装時代のアーカイブ。凍結・修正対象外） ----
         { version: 'v1.5.5', date: '2026-05-12', url: './old_tools/ver155.html', desc: 'はてなブログ版',       type: 'html' },
@@ -30,14 +37,25 @@
     let selectedUrl = '';
     let currentContainerSelector = '';
 
-    // ver1.4.1のみ、ダークモード切り替えをツール内で自己完結的にlocalStorageへ
-    // 保存する実装になっている（本来は他バージョン同様、ブログヘッダー側の
-    // ダークモード制御に追従すべきところ、当時ツール内に直接組み込んでしまった経緯）。
-    // アーカイブとして凍結しこのファイル自体は修正しない方針のため、
-    // sandbox側でallow-same-originを残して動作を維持する。
-    // allow-same-originとallow-scriptsの同時指定はsandboxの隔離を実質無効化するため、
-    // 必要なもの以外はallow-scriptsのみに絞る。
-    const NEEDS_SAME_ORIGIN = ['ver141.html'];
+    // ── sandbox の allow-same-origin 付与方針 ──────────────────────────────
+    // module型（ver210/230/240/155b等）は tools/expmercenary.js 系と同じ実装
+    // 系譜のため、localStorage（LAP通知設定など）に依存する機能を持つ。
+    // allow-same-originなしのiframe（opaque origin）ではlocalStorageアクセスが
+    // 例外を投げ、render()がDOM構築前に停止して画面が真っ白になる不具合が
+    // 実際に発生したため、module型には一律allow-same-originを付与する。
+    //
+    // これは「old_tools/module_shell.html」の外部URL差し替え可能な読み込み
+    // 経路（?script=任意URL）が既に廃止され、iframeのsrcdocへ直接埋め込む
+    // 方式に変わったことが前提。読み込み対象は version_selector.js の
+    // VERSIONS 配列で固定されており、外部から差し替えられないため、
+    // allow-same-originを付与しても「攻撃者の任意コードがその権限を持つ」
+    // という経路は生じない。
+    //
+    // html型（はてなブログ時代のアーカイブ）は、ver141.html のダークモード
+    // 自己完結実装（トグルボタン・localStorage連携）を削除済みのため
+    // 現状は不要。将来、html型でも同一オリジン権限が必要なアーカイブを
+    // 追加する場合はここに追記する。
+    const NEEDS_SAME_ORIGIN = [];
 
     function findVersion(url) {
         return VERSIONS.find(v => v.url === url);
@@ -46,7 +64,7 @@
     function getSandboxAttr(url) {
         const version = findVersion(url);
         const needsSameOrigin = NEEDS_SAME_ORIGIN.some((name) => url.endsWith(name))
-            || (version && (version.type === 'module' || version.type === 'html'));
+            || (version && version.type === 'module');
         return needsSameOrigin ? 'allow-same-origin allow-scripts' : 'allow-scripts';
     }
 
@@ -67,11 +85,45 @@
     });
     bodyClassObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 
-    function buildModuleShell(url) {
+    // module型のシェルHTMLをsrcdocとして直接組み立てる。
+    // 旧module_shell.htmlはクエリ引数 ?script= の値をそのままscript srcに使っており、
+    // 外部URLを指定されると同一オリジン権限で任意コードが実行され得た。
+    // srcdoc方式は読み込み対象が呼び出し元のJSコード内に固定されており、
+    // URL経由で外部から差し替える余地がない。
+    function buildModuleShellSrcdoc(url, globalName) {
         const absoluteUrl = new URL(url, window.location.href).href;
-        const shellUrl = new URL('./old_tools/module_shell.html', window.location.href).href;
-        const encodedScript = encodeURIComponent(absoluteUrl);
-        return `${shellUrl}?script=${encodedScript}`;
+        // globalNameは英数字のみを想定（VERSIONS配列内の固定値）だが、
+        // 念のため許可パターン外の文字が来た場合は安全側に倒して読み込みを中止する。
+        if (!/^[A-Za-z0-9_]+$/.test(globalName)) {
+            return '<p style="padding:12px;color:#c00">内部設定エラー：不正なモジュール名です。</p>';
+        }
+        const escapedUrl = absoluteUrl.replace(/"/g, '&quot;');
+        return `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>旧バージョン読み込み</title>
+<style>html,body{margin:0;padding:0;background:#fff;font-family:sans-serif}#app{min-height:100vh}</style>
+</head><body><div id="app"></div>
+<script src="${escapedUrl}" onerror="document.getElementById('app').textContent='スクリプトの読み込みに失敗しました';"></script>
+<script>
+(function() {
+  function tryRender() {
+    var mod = window[${JSON.stringify(globalName)}];
+    if (mod && typeof mod.render === 'function') {
+      mod.render('#app');
+    } else {
+      document.getElementById('app').textContent = 'このバージョンの読み込みに失敗しました（' + ${JSON.stringify(globalName)} + ' が見つかりません）。';
+    }
+  }
+  // 直前のscriptタグが同期読み込みされるため、通常はこの時点で既に定義済みだが、
+  // 念のためDOMContentLoaded後にも一度だけ確認する。
+  if (window[${JSON.stringify(globalName)}]) {
+    tryRender();
+  } else {
+    document.addEventListener('DOMContentLoaded', tryRender);
+  }
+})();
+</script>
+</body></html>`;
     }
 
     function createEl(tag, className, text) {
@@ -87,9 +139,10 @@
         currentIframe = null;
         if (iframeToDestroy) {
             try {
-                if (iframeToDestroy.contentWindow && iframeToDestroy.contentWindow.Expmercenary
-                    && typeof iframeToDestroy.contentWindow.Expmercenary.destroy === 'function') {
-                    iframeToDestroy.contentWindow.Expmercenary.destroy();
+                const globalName = iframeToDestroy.dataset.globalName;
+                const win = iframeToDestroy.contentWindow;
+                if (win && globalName && win[globalName] && typeof win[globalName].destroy === 'function') {
+                    win[globalName].destroy();
                 }
             } catch (_) { /* クロスオリジン等で触れない場合は無視 */ }
             try {
@@ -114,8 +167,9 @@
         iframe.sandbox = getSandboxAttr(url);
         iframe.style.cssText = 'width:100%;height:100%;border:none;background:white;';
 
-        if (version && version.type === 'module') {
-            iframe.src = buildModuleShell(url);
+        if (version && version.type === 'module' && version.globalName) {
+            iframe.dataset.globalName = version.globalName;
+            iframe.srcdoc = buildModuleShellSrcdoc(url, version.globalName);
         } else {
             iframe.src = url;
         }

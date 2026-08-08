@@ -1033,3 +1033,135 @@ body.dark-mode .rn-version {
 body.dark-mode .rn-list li {
     color: #cbd5e1;
 }
+
+/* ========== 機能ガイド（スポットライト式ツアー） ========== */
+#dqx-guide-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40000;
+    background: transparent;
+}
+
+#dqx-guide-highlight {
+    position: fixed;
+    z-index: 40001;
+    border-radius: 14px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+#dqx-guide-balloon {
+    position: fixed;
+    z-index: 40002;
+    width: 300px;
+    max-width: 88vw;
+    background: #fff;
+    color: #1e293b;
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    transition: top 0.25s ease, left 0.25s ease;
+}
+
+.dqx-guide-step-count {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.dqx-guide-title {
+    font-size: 15px;
+    font-weight: bold;
+    color: #0066cc;
+    margin: 0 0 8px;
+}
+
+.dqx-guide-text {
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 0 0 16px;
+    color: #333;
+}
+
+.dqx-guide-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dqx-guide-actions-right {
+    display: flex;
+    gap: 8px;
+}
+
+.dqx-guide-skip-btn {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 6px 4px;
+    text-decoration: underline;
+}
+
+.dqx-guide-nav-btn {
+    background: #f0f0f0;
+    border: none;
+    border-radius: 20px;
+    padding: 7px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #555;
+}
+
+.dqx-guide-nav-btn.dqx-guide-primary {
+    background: #0066cc;
+    color: #fff;
+    font-weight: bold;
+}
+
+.dqx-guide-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.06);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    color: #888;
+    font-size: 13px;
+    line-height: 1;
+}
+
+/* ダークモード */
+body.dark-mode #dqx-guide-balloon {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+body.dark-mode .dqx-guide-title { color: #60a5fa; }
+body.dark-mode .dqx-guide-text  { color: #cbd5e1; }
+body.dark-mode .dqx-guide-step-count { color: #94a3b8; }
+body.dark-mode .dqx-guide-nav-btn {
+    background: #334155;
+    color: #e2e8f0;
+}
+body.dark-mode .dqx-guide-nav-btn.dqx-guide-primary {
+    background: #3399ff;
+    color: #0f172a;
+}
+body.dark-mode .dqx-guide-skip-btn { color: #94a3b8; }
+body.dark-mode .dqx-guide-close-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+}
+
+@media (max-width: 768px) {
+    #dqx-guide-balloon {
+        width: 88vw;
+        padding: 14px;
+    }
+}

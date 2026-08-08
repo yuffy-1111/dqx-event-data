@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.5s';
+const APP_VERSION = '1.1.7s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -214,6 +214,9 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     }
 
     async function runChecks() {
+        if (window.DQXTools && window.DQXTools.currentTool !== null) {
+            return window.DQX_CARD_BADGES;
+        }
         // 以前は「1日1回」に制限していたが、起動時スプラッシュを毎回表示する
         // 仕様に合わせ、こちらも毎回の起動時にチェックするよう変更。
         // （同日中に内容が更新された場合でもバッジに反映されるようにするため）
@@ -396,7 +399,7 @@ window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(),
 // manifest が改ざんされても window.eval 等の危険なプロパティを呼べないようにする。
 const ALLOWED_RENDER_PREFIXES = [
     'Checker.', 'Expmercenary.', 'VersionSelector.',
-    'Help.', 'Settings.', 'Install.'
+    'Help.', 'Settings.', 'Install.', 'Kaji.'
 ];
 function isAllowedRenderFn(renderFn) {
     return ALLOWED_RENDER_PREFIXES.some((prefix) => renderFn.startsWith(prefix));
@@ -496,7 +499,8 @@ const DQXTools = {
             if (!key) continue;
             const allowed = allowedLocal.includes(key)
                 || key.startsWith('dqx_check_final10_')
-                || key.startsWith('dqx_limited_checks_v3_');
+                || key.startsWith('dqx_limited_checks_v3_')
+                || key.startsWith('dqx_guide_seen_');
             if (!allowed) {
                 try {
                     localStorage.removeItem(key);
@@ -545,6 +549,41 @@ const DQXTools = {
         this.updateContainerPadding();
     },
 
+    // show=クエリパラメータ／dqx_visible_tools（カード編集での表示設定）／
+    // defaultHidden（検証中ツールの初期非表示）を考慮して、渡された
+    // [id, tool] エントリ配列をユーザーの現在の表示設定でフィルタする。
+    // ホーム画面（showLauncher）とツール切り替えバー（renderToolMenu）の
+    // 両方で表示対象が食い違わないよう、判定ロジックをここに一本化する。
+    filterByUserVisibility: function(entries) {
+        try {
+            const params    = new URLSearchParams(window.location.search);
+            const showParam = params.get('show');
+            if (showParam) {
+                const wanted = showParam.split(',').map((s) => s.trim()).filter(Boolean);
+                return entries.filter(([id]) => wanted.includes(id));
+            }
+            const stored = localStorage.getItem(STORAGE_KEYS.VISIBLE_TOOLS);
+            if (stored) {
+                try {
+                    const wanted = JSON.parse(stored);
+                    if (Array.isArray(wanted) && wanted.length > 0) {
+                        return entries.filter(([id]) => wanted.includes(id));
+                    }
+                } catch (e) {
+                    console.warn('Invalid dqx_visible_tools in localStorage', e);
+                }
+                return entries;
+            }
+            // 表示設定が未保存（初回起動・カード編集で一度も触っていない）の場合は
+            // defaultHidden なツール（検証中の鍛冶シミュレーター等）をデフォルトの
+            // 表示対象から除外する。
+            return entries.filter(([, tool]) => !tool.defaultHidden);
+        } catch (e) {
+            console.warn('Invalid show param', e);
+            return entries;
+        }
+    },
+
     showLauncher: function() {
         const savedOrder = localStorage.getItem(STORAGE_KEYS.CARD_ORDER);
         const order      = savedOrder ? JSON.parse(savedOrder) : null;
@@ -559,29 +598,7 @@ const DQXTools = {
         let toolEntries = Object.entries(this.tools).filter(([, tool]) => {
             return !(tool.hideInMenu && !tool.testToolConfig);
         });
-
-        try {
-            const params    = new URLSearchParams(window.location.search);
-            const showParam = params.get('show');
-            if (showParam) {
-                const wanted = showParam.split(',').map((s) => s.trim()).filter(Boolean);
-                toolEntries  = toolEntries.filter(([id]) => wanted.includes(id));
-            } else {
-                const stored = localStorage.getItem(STORAGE_KEYS.VISIBLE_TOOLS);
-                if (stored) {
-                    try {
-                        const wanted = JSON.parse(stored);
-                        if (Array.isArray(wanted) && wanted.length > 0) {
-                            toolEntries = toolEntries.filter(([id]) => wanted.includes(id));
-                        }
-                    } catch (e) {
-                        console.warn('Invalid dqx_visible_tools in localStorage', e);
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('Invalid show param', e);
-        }
+        toolEntries = this.filterByUserVisibility(toolEntries);
 
         if (order) {
             toolEntries.sort((a, b) => {
@@ -803,6 +820,13 @@ const DQXTools = {
                 }
             });
         }
+
+        // 初回のみ、ホーム画面の使い方ガイドを自動表示する
+        // （showGuide側で既読フラグ・多重起動を判定するため、resize等で
+        //   showLauncher()が再度呼ばれても実害はない）
+        if (this.currentTool === null) {
+            this.maybeShowHomeGuide();
+        }
     },
 
     // トークン入力を専用UIで行う（prompt() は PWA standalone で動作しない環境がある）
@@ -917,6 +941,12 @@ const DQXTools = {
             const t = this.tools[id];
             return !(t.hideInMenu && !t.requiresToken);
         }).sort();
+        // 表示設定が未保存の場合に使う初期選択状態（defaultHidden なツールは除く）
+        const defaultVisibleIds = allIds.filter((id) => !this.tools[id].defaultHidden);
+        // defaultHidden を持つツールが1つでもある場合、「全部チェック＝設定削除（無条件全表示に戻す）」
+        // をしてしまうと、次回起動時に defaultHidden 判定が働いて再び非表示化されてしまう
+        // （チェックを入れた操作が保存されない）ため、その場合は必ず明示的に保存する。
+        const hasDefaultHidden = allIds.some((id) => this.tools[id].defaultHidden);
 
         const renderList = () => {
             listContainer.innerHTML = '';
@@ -926,7 +956,7 @@ const DQXTools = {
 
                 const chk = document.createElement('input');
                 chk.type    = 'checkbox';
-                chk.checked = visible ? visible.includes(id) : true;
+                chk.checked = visible ? visible.includes(id) : defaultVisibleIds.includes(id);
 
                 const label = document.createElement('div');
                 label.className = 'manage-label';
@@ -934,7 +964,7 @@ const DQXTools = {
 
                 chk.onchange = () => {
                     if (chk.checked) {
-                        if (!visible) visible = allIds.slice();
+                        if (!visible) visible = defaultVisibleIds.slice();
                         if (!visible.includes(id)) visible.push(id);
                     } else {
                         const checkedCount = listContainer.querySelectorAll('input[type="checkbox"]:checked').length;
@@ -945,9 +975,9 @@ const DQXTools = {
                             }
                             return;
                         }
-                        visible = (visible || allIds.slice()).filter((x) => x !== id);
+                        visible = (visible || defaultVisibleIds.slice()).filter((x) => x !== id);
                     }
-                    if (visible && visible.length === allIds.length) {
+                    if (!hasDefaultHidden && visible && visible.length === allIds.length) {
                         localStorage.removeItem(STORAGE_KEYS.VISIBLE_TOOLS);
                     } else {
                         localStorage.setItem(STORAGE_KEYS.VISIBLE_TOOLS, JSON.stringify(visible || []));
@@ -1049,7 +1079,9 @@ const DQXTools = {
     renderToolMenu: function() {
         const isMobile = this.isMobile();
 
-        const menuEntries = Object.entries(this.tools).filter(([, tool]) => !tool.hideInMenu);
+        const menuEntries = this.filterByUserVisibility(
+            Object.entries(this.tools).filter(([, tool]) => !tool.hideInMenu)
+        );
         document.getElementById('tool-menu-bar')?.remove();
         document.getElementById('sidebar-float-toggle')?.remove();
 
@@ -1327,9 +1359,14 @@ const DQXTools = {
             this.removeOldToolScripts(tool.url, tool.ver);
             await this.loadScript(tool.url, tool.renderFn, tool.ver);
 
-            const fn = tool.renderFn
-                .split('.')
-                .reduce((obj, key) => obj && obj[key], window);
+            // renderFn（例: "Kaji.render"）からメソッドと呼び出し元オブジェクトを分離する。
+            // 従来は関数参照だけを取り出して `fn('#dqx-tool-container')` のように
+            // 素の関数呼び出しをしていたため、render内で `this` を参照するツール
+            // （kaji.js 等）では this が undefined になりエラーになっていた。
+            const renderPath   = tool.renderFn.split('.');
+            const methodName   = renderPath.pop();
+            const thisContext  = renderPath.reduce((obj, key) => obj && obj[key], window);
+            const fn           = thisContext && thisContext[methodName];
 
             loadingDiv.remove();
 
@@ -1338,7 +1375,7 @@ const DQXTools = {
                 const newToolContainer   = document.createElement('div');
                 newToolContainer.id      = 'dqx-tool-container';
                 this.container.appendChild(newToolContainer);
-                fn('#dqx-tool-container');
+                fn.call(thisContext, '#dqx-tool-container');
                 this.currentTool = toolId;
                 this.renderToolMenu();
             } else {
@@ -1393,6 +1430,181 @@ const DQXTools = {
                 window[g].destroy();
             }
         });
+    },
+
+    // ========== 機能ガイド（スポットライト式ツアー） ==========
+    // steps: [{ selector, title, text }, ...]
+    // guideKey: localStorageの既読管理キー（例: 'dqx_guide_seen_home'）
+    // options.force: true の場合、既読フラグを無視して強制表示する（設定画面からの手動呼び出し用）
+    showGuide: function(steps, guideKey, options) {
+        options = options || {};
+        const force = !!options.force;
+        if (!Array.isArray(steps) || steps.length === 0) return;
+        if (!force) {
+            try {
+                if (localStorage.getItem(guideKey) === '1') return;
+            } catch (e) { /* noop */ }
+        }
+        // 多重起動防止（resize等で複数回呼ばれても二重表示しない）
+        if (document.getElementById('dqx-guide-overlay')) return;
+
+        let idx = 0;
+
+        const overlay = document.createElement('div');
+        overlay.id = 'dqx-guide-overlay';
+
+        const highlight = document.createElement('div');
+        highlight.id = 'dqx-guide-highlight';
+
+        const balloon = document.createElement('div');
+        balloon.id = 'dqx-guide-balloon';
+
+        const cleanup = () => {
+            window.removeEventListener('resize', reposition);
+            overlay.remove();
+            highlight.remove();
+            balloon.remove();
+        };
+
+        const finish = () => {
+            try { localStorage.setItem(guideKey, '1'); } catch (e) { /* noop */ }
+            cleanup();
+            if (window.dqxShowToast) {
+                window.dqxShowToast('ガイドは設定からいつでも見返せます', { duration: 4000 });
+            }
+        };
+
+        const reposition = () => {
+            const step = steps[idx];
+            if (!step) { finish(); return; }
+            const target = document.querySelector(step.selector);
+            if (!target) {
+                // 対象要素が見つからない場合は次のステップへ（全滅なら終了）
+                if (idx < steps.length - 1) { idx++; renderStep(); }
+                else finish();
+                return;
+            }
+            const rect = target.getBoundingClientRect();
+            const pad  = 8;
+            highlight.style.top    = (rect.top - pad) + 'px';
+            highlight.style.left   = (rect.left - pad) + 'px';
+            highlight.style.width  = (rect.width + pad * 2) + 'px';
+            highlight.style.height = (rect.height + pad * 2) + 'px';
+
+            // 吹き出し位置：対象の下に置けるならそこ、収まらなければ上に出す
+            const balloonWidth    = balloon.offsetWidth || 300;
+            const estimatedHeight = balloon.offsetHeight || 160;
+            let top = rect.bottom + pad + 12;
+            if (top + estimatedHeight > window.innerHeight - 10) {
+                top = Math.max(10, rect.top - pad - estimatedHeight - 12);
+            }
+            let left = rect.left + rect.width / 2 - balloonWidth / 2;
+            left = Math.max(10, Math.min(left, window.innerWidth - balloonWidth - 10));
+            balloon.style.top  = top + 'px';
+            balloon.style.left = left + 'px';
+
+            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        };
+
+        const renderStep = () => {
+            const step = steps[idx];
+            if (!step) { finish(); return; }
+
+            balloon.innerHTML = '';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'dqx-guide-close-btn';
+            closeBtn.textContent = '✕';
+            closeBtn.setAttribute('aria-label', '閉じる');
+            closeBtn.onclick = finish;
+            balloon.appendChild(closeBtn);
+
+            const countEl = document.createElement('div');
+            countEl.className = 'dqx-guide-step-count';
+            countEl.textContent = `${idx + 1} / ${steps.length}`;
+            balloon.appendChild(countEl);
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'dqx-guide-title';
+            titleEl.textContent = step.title || '';
+            balloon.appendChild(titleEl);
+
+            const textEl = document.createElement('div');
+            textEl.className = 'dqx-guide-text';
+            textEl.textContent = step.text || '';
+            balloon.appendChild(textEl);
+
+            const actions = document.createElement('div');
+            actions.className = 'dqx-guide-actions';
+
+            if (idx === 0) {
+                const skipBtn = document.createElement('button');
+                skipBtn.className = 'dqx-guide-skip-btn';
+                skipBtn.textContent = 'スキップ';
+                skipBtn.onclick = finish;
+                actions.appendChild(skipBtn);
+            } else {
+                actions.appendChild(document.createElement('span'));
+            }
+
+            const actionsRight = document.createElement('div');
+            actionsRight.className = 'dqx-guide-actions-right';
+
+            if (idx > 0) {
+                const backBtn = document.createElement('button');
+                backBtn.className = 'dqx-guide-nav-btn';
+                backBtn.textContent = '戻る';
+                backBtn.onclick = () => { idx--; renderStep(); };
+                actionsRight.appendChild(backBtn);
+            }
+
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'dqx-guide-nav-btn dqx-guide-primary';
+            nextBtn.textContent = (idx === steps.length - 1) ? '完了' : '次へ';
+            nextBtn.onclick = () => {
+                if (idx === steps.length - 1) { finish(); return; }
+                idx++;
+                renderStep();
+            };
+            actionsRight.appendChild(nextBtn);
+
+            actions.appendChild(actionsRight);
+            balloon.appendChild(actions);
+
+            requestAnimationFrame(reposition);
+        };
+
+        window.addEventListener('resize', reposition);
+
+        document.body.appendChild(overlay);
+        document.body.appendChild(highlight);
+        document.body.appendChild(balloon);
+        renderStep();
+    },
+
+    // ホーム画面用ガイド（初回自動表示・設定画面からの再表示の両方で使う）
+    maybeShowHomeGuide: function(force) {
+        // 起動時ローディングオーバーレイが表示されている間はガイドを隠してしまうため、
+        // オーバーレイが消えるまで待ってから表示する。
+        if (document.getElementById('dqx-loading-overlay')) {
+            setTimeout(() => this.maybeShowHomeGuide(force), 300);
+            return;
+        }
+        const steps = [
+            { selector: '.home-grid',            title: 'ツール一覧',   text: 'ここをタップすると各ツールが開きます。カードは長押しして並び替えることもできます。' },
+            { selector: '#open-manage-link',     title: 'カード編集',   text: '表示するツールの選択ができます。' },
+            { selector: '#global-dark-toggle',   title: 'ダークモード', text: '画面全体の明るさを切り替えられます。' },
+            { selector: '#dqx-net-status',       title: '更新状況',     text: 'タップすると、ツールの更新状況や通信状況を確認できます。' },
+            { selector: '#footer-releasenotes-btn', title: 'リリースノート', text: '更新による変更内容はここから確認できます。' },
+        ];
+        this.showGuide(steps, 'dqx_guide_seen_home', { force: !!force });
+    },
+
+    // 設定画面の「ガイドをもう一度見る」ボタンから呼ばれる。
+    // ガイドの対象要素はホーム画面にしかないため、まずホームへ戻してから表示する。
+    showHomeGuideForced: function() {
+        this.goHome();
+        setTimeout(() => this.maybeShowHomeGuide(true), 50);
     },
 
     destroy: function() {

@@ -1575,7 +1575,7 @@ v1.1.7
 
   // ─── グローバル公開（後方互換: シングルトン） ──────────────────────────
   const _defaultInstance = createExpCalc();
-  global.Expmercenary = {
+  global.ExpmercenaryV230 = {
     render:  _defaultInstance.render,
     destroy: _defaultInstance.destroy,
     // 複数インスタンスが必要な場合

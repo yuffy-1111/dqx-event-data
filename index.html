@@ -174,7 +174,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.1.5s';
+        window.HTML_VERSION = '1.1.7s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -496,7 +496,8 @@
 
             // バッジ差分の再チェック（フルリロード不要・軽量）
             try {
-                if (typeof window.dqxRunBackgroundChecks === 'function') {
+                if (typeof window.dqxRunBackgroundChecks === 'function'
+                    && (!window.DQXTools || window.DQXTools.currentTool === null)) {
                     await window.dqxRunBackgroundChecks();
                     // ホーム画面表示中なら再描画してバッジを反映する
                     if (window.DQXTools && window.DQXTools.currentTool === null
@@ -561,6 +562,7 @@ const FALLBACK_TOOLS = [
     { id: 'Checker',  name: '進捗チェッカー',        icon: '📋', desc: '日課・週課・隔週・月課',              url: './tools/checker.js',          renderFn: 'Checker.render' },
     { id: 'exp-m',    name: '傭兵ログトラッカー',              icon: '⚔️', desc: '経験値計算<br>タイマー', url: './tools/expmercenary.js',      renderFn: 'Expmercenary.render' },
     { id: 'versions', name: '傭兵ログトラッカー<br>旧ver',     icon: '📜', desc: '旧verセレクタ',          url: './tools/version_selector.js',  renderFn: 'VersionSelector.render' },
+    { id: 'kaji',     name: '鍛冶職人シミュレーター',          icon: '🔨', desc: '鍛冶シミュレーター',     url: './tools/kaji.js',              renderFn: 'Kaji.render', defaultHidden: true },
     { id: 'help',     name: '取扱説明書',                      icon: '📖', desc: '使い方<br>Q&A',          url: './tools/help.js',              renderFn: 'Help.render' },
     { id: 'settings', name: '設定',                            icon: '⚙️', desc: 'キャッシュ<br>フィードバック', url: './tools/settings.js',     renderFn: 'Settings.render' },
     { id: 'install',  name: 'アプリの<br>使い方',              icon: '📲', desc: 'ホーム画面に<br>追加する方法', url: './tools/install.js',      renderFn: 'Install.render', hideInMenu: true }
@@ -581,13 +583,14 @@ function registerAllTools(manifestData) {
 
     toolList.forEach((tool) => {
         DQXTools.register(tool.id, {
-            name:       tool.name,
-            icon:       tool.icon,
-            desc:       tool.desc,
-            url:        tool.url,
-            renderFn:   tool.renderFn,
-            ver:        tool.ver,
-            hideInMenu: !!tool.hideInMenu
+            name:          tool.name,
+            icon:          tool.icon,
+            desc:          tool.desc,
+            url:           tool.url,
+            renderFn:      tool.renderFn,
+            ver:           tool.ver,
+            hideInMenu:    !!tool.hideInMenu,
+            defaultHidden: !!tool.defaultHidden
         });
     });
 
