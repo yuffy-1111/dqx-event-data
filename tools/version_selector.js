@@ -18,6 +18,7 @@
 (function(global) {
     const VERSIONS = [
         // ---- モジュールJS版（現行アーキテクチャ。今後もここに追記していく） ----
+        { version: 'v2.5.0', date: '2026-07-11', url: './old_tools/ver250.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV250' },
         { version: 'v2.4.0', date: '2026-07-09', url: './old_tools/ver240.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV240' },
         { version: 'v2.3.0', date: '2026-06-28', url: './old_tools/ver230.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV230' },
         { version: 'v2.1.0', date: '2026-06-19', url: './old_tools/ver210.js',  desc: '',                         type: 'module', globalName: 'ExpmercenaryV210' },

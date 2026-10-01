@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.7s';
+const APP_VERSION = '1.1.8s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）

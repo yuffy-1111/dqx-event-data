@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.6.0 ==========
+// ========== 傭兵用多機能ツール ver2.5.0 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -10,11 +10,6 @@
 //             （デュラハーン+はぐメタ×3(hg), 料理+元気, E=368243）
 // [DOC]      お供・各Buff/アイテム・通帳1/2・LAPの実質的用途をコメント内に明示（ver2.5.1）
 // [REMOVE]   デスペナルティ及び関連UIを撤廃（実用性のある精度の実装が不可能なため。ver2.5.1）
-// [FIX]      通帳の引出(リセット/1Lv分引出)を履歴行(withdraw)化。passbookOffset を廃止し、
-//            残高は履歴を時系列でたどって都度算出。引出は「その時点の残高」まで（ver2.5.2）
-// [FEATURE]  履歴の変更（条件編集/呼び数/お供/削除/引出/通帳切替）に応じて、以降の通帳・溢れ行を
-//            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
-//            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
 
 // 変更履歴（ver2.0.0時点）:
 // [BUG] _recalcLaps: 削除後の lastLapSec 更新を正確化
@@ -67,11 +62,11 @@
 
   const TYPE_LABEL = {
     pass: "[通]", angel: "[エ]", overflow: "[溢]",
-    normal: "", lap_only: "[LAP]", job: "転職", withdraw: "[引出]",
+    normal: "", lap_only: "[LAP]", job: "転職",
   };
   const TYPE_COLOR = {
     pass: "#f88", angel: "#5a9eff", overflow: "#aaa",
-    lap_only: "#2cc9ff", job: "#00bcd4", withdraw: "#f0c452",
+    lap_only: "#2cc9ff", job: "#00bcd4",
   };
 
   // ─── CSV2テーブル（最適モンスター選定） ────────────────────────────────
@@ -189,6 +184,7 @@
     let pauseSec     = 0;
     let lastLapSec   = 0;
     let jobOffsetSec = 0;
+    let passbookOffset = 0;
     let killCount    = 0;
     let optCallCount = 1;
     let calcLockedUntil = 0;
@@ -197,8 +193,6 @@
     let lapNotifyFired   = false;
     let audioCtx     = null;
     let jobBtnLocked = false;      // 転職ボタン連打防止フラグ
-    let flowSuspend  = 0;          // >0 の間は通帳振り分けの連動再計算を保留（複数行をまとめて追加する間）
-    let flowBusy     = false;      // 連動再計算の再入防止
 
     // DOM キャッシュ（render後に設定）
     let root = null;
@@ -386,33 +380,6 @@
     // ── 行キャッシュ（追加順: 古い→新しい） ─────────────────────────────
     const rowCache = [];   // rowCache[0] が最初に追加された行
 
-    // ── 通帳残高を時系列で計算し、引出行の実額を同期する ─────────────────────
-    // 引出は「その時点の残高」を超えて引けない（現実にマイナス残高は存在しない）。
-    // 引出行は要求額(dataset.req)を保持し、実額(dataset.val)は都度 min(req, その時点の残高) で
-    // 決める。引出後に元の通帳行を下方修正しても赤字が後続に持ち越されず、
-    // 元の値に戻せば引出も要求額に戻る。戻り値は現在の通帳残高。
-    function applyWithdraw(r, balance) {
-      const req = parseFloat(r.dataset.req);
-      const requested = isNaN(req) ? (parseFloat(r.dataset.val) || 0) : req;
-      const eff = Math.min(requested, balance);
-      if (parseFloat(r.dataset.val) !== eff) {
-        r.dataset.val          = eff;
-        r.dataset.rawValCapped = eff;
-        const el = r.querySelector(".exp-value");
-        if (el) el.textContent = "-" + eff.toLocaleString();
-      }
-      return balance - eff;
-    }
-
-    function syncPassbook(upTo = rowCache.length) {
-      let balance = 0;
-      rowCache.slice(0, upTo).forEach(r => {
-        if (r.dataset.type === "pass") balance += parseFloat(r.dataset.val) || 0;
-        else if (r.dataset.type === "withdraw") balance = applyWithdraw(r, balance);
-      });
-      return balance;
-    }
-
     // ── パートナーセレクト生成 ───────────────────────────────────────────
     function buildPartnerSelect(monsterId, selectedKey) {
       const sel = document.createElement("select");
@@ -431,296 +398,15 @@
         const opt = document.createElement("option");
         opt.value = String(i);
         opt.textContent = CALL_LABELS[i];
-        if (i === parseInt(callCount)) opt.selected = true;   // 復元時は文字列で渡るため数値化して比較
+        if (i === callCount) opt.selected = true;
         sel.appendChild(opt);
       }
       return sel;
     }
 
-    // ── 履歴行の条件編集（createExpCalc 直下に配置。addRow のたびに再生成しない）──
-    function readRowSnapshot(row) {
-      const base = {
-        fd:     $("fd").checked,
-        tr:     $("tr").checked,
-        ag:     $("ag").checked,
-        em:     $("em").checked,
-        elixir: root.querySelector('input[name="e_exp"]:checked')?.value || "none",
-        pb:     root.querySelector('input[name="pb"]:checked')?.value || "0",
-        ms:     row?.dataset.monsterId || $("ms").value,
-      };
-      if (!row?.dataset.snapshot) return base;
-      try {
-        return { ...base, ...JSON.parse(row.dataset.snapshot) };
-      } catch {
-        return base;
-      }
-    }
-
-
-    // ═══════════════════════════════════════════════════════════════════
-    // 通帳振り分けの連動再計算
-    // ═══════════════════════════════════════════════════════════════════
-    // 方針: 1回の戦闘（グループ）の行構成は「条件(snapshot)・呼び数・お供・その時点の通帳残高」
-    // から導出される。どこかの履歴を変更（条件編集/呼び数/お供/削除/引出/通帳切替）したら、
-    // 時系列で先頭から通帳残高をたどり直し、以降の全グループの
-    //   通帳行 / 溢れ行 / エンゼル行 / 通常行
-    // を再計算する。構成が変わるグループだけ行を作り直し、値だけ変わるものは値のみ更新する。
-    //
-    // グループ = main==="true" の行 + 直後に続く main!=="true" の戦闘行
-    //            （通帳行+溢れ行+エンゼル行。全額溢れの場合は溢れ行がmain）
-
-    function isBattleRow(r) {
-      const t = r.dataset.type;
-      return t !== "lap_only" && t !== "job" && t !== "withdraw";
-    }
-
-    function getGroupOf(row) {
-      if (!isBattleRow(row)) return [row];
-      let i = rowCache.indexOf(row);
-      if (i < 0) return [row];
-      while (i > 0 && rowCache[i].dataset.main !== "true" && isBattleRow(rowCache[i - 1])) i--;
-      let j = i + 1;
-      while (j < rowCache.length && isBattleRow(rowCache[j]) && rowCache[j].dataset.main !== "true") j++;
-      return rowCache.slice(i, j);
-    }
-
-    // 1グループを現在の通帳残高(balance)で割り当て直す。戻り値: { used: 通帳に入った額, n: 割当後の行数 }
-    function allocateGroup(group, startIdx, balance) {
-      const main = group[0];
-      let snap;
-      try { snap = JSON.parse(main.dataset.snapshot || "{}"); } catch (e) { snap = {}; }
-      const count = parseInt(main.dataset.count) || 1;
-      let partner = group.map(r => r.querySelector(".rs")?.value).find(Boolean) || "none";
-      if (partner === "zucchini" && snap.ms !== "dearthlicant") partner = "none";   // ズッキ祖はダースリカント専用
-      const result = calcExp(count, partner, snap);
-      const limit  = parseInt(snap.pb || "0") || 0;
-
-      const desired = [];
-      let passVal = 0;
-      if (limit > 0) {
-        const remaining = Math.max(0, limit - balance);
-        passVal = Math.min(result.common, remaining);
-        const ovVal = result.common - passVal;
-        if (passVal > 0) desired.push({ type: "pass",     val: passVal, main: true });
-        if (ovVal   > 0) desired.push({ type: "overflow", val: ovVal,   main: passVal === 0 });
-        if (result.angel > 0) desired.push({ type: "angel", val: result.angel, main: false });
-      } else {
-        desired.push({ type: "normal", val: result.total, main: true });
-      }
-      if (desired.length === 0) desired.push({ type: limit > 0 ? "pass" : "normal", val: 0, main: true });
-
-      const dirty = group.some(r => r.dataset.dirty === "1");   // 条件編集直後（モンスター変更でお供選択肢も変わる）
-      const sameShape = !dirty && desired.length === group.length &&
-        desired.every((d, k) => d.type === group[k].dataset.type && String(d.main) === group[k].dataset.main);
-
-      if (sameShape) {
-        desired.forEach((d, k) => {
-          const r = group[k];
-          if (parseFloat(r.dataset.val) !== d.val) {
-            r.dataset.val          = d.val;
-            r.dataset.rawValCapped = d.val;
-            const el = r.querySelector(".exp-value");
-            if (el) el.textContent = d.val.toLocaleString();
-          }
-        });
-        return { used: passVal, n: group.length, changed: false };
-      }
-
-      // 構成が変わる: このグループの行を作り直す（位置・時刻・呼び数・お供・条件は引き継ぐ）
-      const elapsedSec = parseFloat(main.dataset.sec) || 0;
-      const lapRaw     = parseFloat(main.dataset.lap);
-      const lapSec     = Number.isFinite(lapRaw) && lapRaw >= 0 ? lapRaw : null;
-      const bid        = main.dataset.bid;
-      group.forEach(r => {
-        r.remove();
-        rowCache.splice(rowCache.indexOf(r), 1);
-      });
-      desired.forEach((d, k) => {
-        addRow(bid, count, d.val, d.type, elapsedSec, lapSec, d.main, d.val, snap.ms,
-               { insertAt: startIdx + k, snapshot: snap, partner });
-      });
-      return { used: passVal, n: desired.length, changed: true };
-    }
-
-    // 履歴全体を時系列でたどり、通帳の振り分けと引出の実額を確定する。戻り値は最終残高。
-    function recomputePassbookFlow() {
-      if (flowBusy) return null;
-      flowBusy = true;
-      let balance = 0;
-      let structureChanged = false;
-      try {
-        let i = 0;
-        while (i < rowCache.length) {
-          const r = rowCache[i];
-          if (r.dataset.type === "withdraw") {
-            balance = applyWithdraw(r, balance);
-            i++;
-          } else if (!isBattleRow(r)) {
-            i++;
-          } else {
-            let j = i + 1;
-            while (j < rowCache.length && isBattleRow(rowCache[j]) && rowCache[j].dataset.main !== "true") j++;
-            const res = allocateGroup(rowCache.slice(i, j), i, balance);
-            balance += res.used;
-            if (res.changed) structureChanged = true;
-            i += res.n;
-          }
-        }
-      } finally {
-        flowBusy = false;
-      }
-      if (structureChanged) {
-        renumberRows();
-        recalcLaps();
-      }
-      return balance;
-    }
-
-    // 履歴行の条件編集: グループ全体に新しい条件を設定し、連動再計算に任せる
-    function applyGroupSnapshot(row, nextSnapshot) {
-      const json = JSON.stringify(nextSnapshot);
-      getGroupOf(row).forEach(r => {
-        r.dataset.snapshot  = json;
-        r.dataset.monsterId = nextSnapshot.ms;
-        r.dataset.dirty     = "1";
-      });
-      updateTotal();
-      saveSession();
-    }
-
-    function openRowSnapshotEditor(row) {
-      const existing = root?.querySelector(".snapshot-editor");
-      if (existing) { existing.remove(); }
-
-      const snap = readRowSnapshot(row);
-      const editor = document.createElement("div");
-      editor.className = "snapshot-editor";
-
-      const title = document.createElement("div");
-      title.className = "snapshot-editor-title";
-      title.textContent = "条件を編集";
-      editor.appendChild(title);
-
-      const grid = document.createElement("div");
-      grid.className = "snapshot-editor-grid";
-
-      const monsterWrap = document.createElement("label");
-      monsterWrap.className = "snapshot-editor-field";
-      monsterWrap.innerHTML = '<span>モンスター</span>';
-      const monsterSel = document.createElement("select");
-      monsterSel.className = "snapshot-editor-select";
-      ["returner", "durahan", "hell", "scare", "dearthlicant", "golem_strong"].forEach((value) => {
-        const opt = document.createElement("option");
-        opt.value = value;
-        opt.textContent = $("ms").querySelector(`option[value="${value}"]`)?.textContent || value;
-        if (value === (snap.ms || $("ms").value)) opt.selected = true;
-        monsterSel.appendChild(opt);
-      });
-      monsterWrap.appendChild(monsterSel);
-      grid.appendChild(monsterWrap);
-
-      const buffWrap = document.createElement("div");
-      buffWrap.className = "snapshot-editor-buffs";
-      const makeCheck = (id, labelText, checked) => {
-        const label = document.createElement("label");
-        label.className = "snapshot-editor-check";
-        const box = document.createElement("input");
-        box.type = "checkbox";
-        box.checked = checked;
-        box.id = `snapshot-${row.dataset.bid}-${id}`;
-        const txt = document.createElement("span");
-        txt.textContent = labelText;
-        label.appendChild(box);
-        label.appendChild(txt);
-        return label;
-      };
-      buffWrap.appendChild(makeCheck("fd", "料理", !!snap.fd));
-      buffWrap.appendChild(makeCheck("tr", "修練", !!snap.tr));
-      buffWrap.appendChild(makeCheck("ag", "エンゼル", !!snap.ag));
-      buffWrap.appendChild(makeCheck("em", "皇帝", !!snap.em));
-      grid.appendChild(buffWrap);
-
-      const elixirWrap = document.createElement("div");
-      elixirWrap.className = "snapshot-editor-group";
-      const elixirLabel = document.createElement("span");
-      elixirLabel.textContent = "エリクサー";
-      elixirWrap.appendChild(elixirLabel);
-      const elixirRadios = ["none", "genki", "bakushin"];
-      elixirRadios.forEach((value) => {
-        const label = document.createElement("label");
-        label.className = "snapshot-editor-radio";
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = `snapshot-elixir-${row.dataset.bid}`;
-        radio.value = value;
-        radio.checked = (snap.elixir || "none") === value;
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(value === "none" ? "無" : value === "genki" ? "元気" : "爆伸"));
-        elixirWrap.appendChild(label);
-      });
-      grid.appendChild(elixirWrap);
-
-      const pbWrap = document.createElement("div");
-      pbWrap.className = "snapshot-editor-group";
-      const pbLabel = document.createElement("span");
-      pbLabel.textContent = "通帳";
-      pbWrap.appendChild(pbLabel);
-      ["0", "5000000", "10000000"].forEach((value) => {
-        const label = document.createElement("label");
-        label.className = "snapshot-editor-radio";
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = `snapshot-pb-${row.dataset.bid}`;
-        radio.value = value;
-        radio.checked = (snap.pb || "0") === value;
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(value === "0" ? "無" : value === "5000000" ? "1" : "2"));
-        pbWrap.appendChild(label);
-      });
-      grid.appendChild(pbWrap);
-
-      const actions = document.createElement("div");
-      actions.className = "snapshot-editor-actions";
-
-      const applyBtn = document.createElement("button");
-      applyBtn.type = "button";
-      applyBtn.textContent = "適用";
-      applyBtn.onclick = () => {
-        const fd = editor.querySelector(`#snapshot-${row.dataset.bid}-fd`)?.checked ?? !!snap.fd;
-        const tr = editor.querySelector(`#snapshot-${row.dataset.bid}-tr`)?.checked ?? !!snap.tr;
-        const ag = editor.querySelector(`#snapshot-${row.dataset.bid}-ag`)?.checked ?? !!snap.ag;
-        const em = editor.querySelector(`#snapshot-${row.dataset.bid}-em`)?.checked ?? !!snap.em;
-        const elixir = editor.querySelector(`input[name="snapshot-elixir-${row.dataset.bid}"]:checked`)?.value || snap.elixir || "none";
-        const pb = editor.querySelector(`input[name="snapshot-pb-${row.dataset.bid}"]:checked`)?.value || snap.pb || "0";
-        const ms = monsterSel.value;
-
-        const nextSnapshot = { fd, tr, ag, em, elixir, pb, ms };
-        applyGroupSnapshot(row, nextSnapshot);
-        editor.remove();
-      };
-
-      const cancelBtn = document.createElement("button");
-      cancelBtn.type = "button";
-      cancelBtn.textContent = "閉じる";
-      cancelBtn.onclick = () => editor.remove();
-
-      actions.appendChild(applyBtn);
-      actions.appendChild(cancelBtn);
-      editor.appendChild(grid);
-      editor.appendChild(actions);
-
-      if (root) {
-        root.appendChild(editor);
-      } else {
-        document.body.appendChild(editor);
-      }
-    }
-
-
     // ── 行追加 ───────────────────────────────────────────────────────────
-    // opts: { insertAt, snapshot, partner } … 条件編集での再挿入用（省略時は末尾に追加）
     function addRow(rowId, callCount, expVal, rowType, elapsedSec, lapSec,
-                    isMain = false, rawCapped = null, monsterId = null, opts = {}) {
+                    isMain = false, rawCapped = null, monsterId = null) {
 
       const row = document.createElement("div");
       row.className = "exp-row";
@@ -731,11 +417,10 @@
       row.dataset.lap          = lapSec != null ? lapSec : -1;
       row.dataset.main         = isMain;
       row.dataset.count        = callCount;
-      if (rowType === "withdraw") row.dataset.req = expVal;   // 引出の要求額（実額は syncPassbook が決定）
       row.dataset.bid          = rowId;
       row.dataset.monsterId    = monsterId || $("ms").value;
 
-      const snapshot = opts.snapshot || {
+      const snapshot = {
         fd:     $("fd").checked,
         tr:     $("tr").checked,
         ag:     $("ag").checked,
@@ -751,9 +436,6 @@
       if (rowId === "LAP") {
         rowIdSpan.className   = "row-id-lap";
         rowIdSpan.textContent = "LAP";
-      } else if (rowType === "withdraw") {
-        rowIdSpan.className   = "row-id-lap";
-        rowIdSpan.textContent = "引出";
       } else {
         rowIdSpan.className   = "row-id-normal";
         rowIdSpan.textContent = `#${rowId}`;
@@ -785,15 +467,19 @@
       delBtn.className   = "del";
       delBtn.textContent = "×";
       delBtn.onclick = () => {
-        // 通帳/溢れ/エンゼルは1回の戦闘から導出される行なので、どれを消しても戦闘ごと削除する
-        getGroupOf(row).forEach(r => {
-          r.remove();
-          rowCache.splice(rowCache.indexOf(r), 1);
-        });
+        const bid  = row.dataset.bid;
+        const type = row.dataset.type;
+        if (type === "pass") {
+          rowCache
+            .filter(r => r !== row && r.dataset.bid === bid &&
+                    (r.dataset.type === "angel" || r.dataset.type === "overflow"))
+            .forEach(r => { r.remove(); rowCache.splice(rowCache.indexOf(r), 1); });
+        }
+        row.remove();
+        rowCache.splice(rowCache.indexOf(row), 1);
         renumberRows();
         recalcLaps();
         updateTotal();
-        saveSession();
       };
       timeWrapper.appendChild(delBtn);
       row.appendChild(timeWrapper);
@@ -814,50 +500,79 @@
         expCell.className = "exp-cell";
         const valSpan = document.createElement("strong");
         valSpan.className   = "exp-value";
-        valSpan.textContent = (rowType === "withdraw" ? "-" : "") + expVal.toLocaleString();
+        valSpan.textContent = expVal.toLocaleString();
         const lbl = document.createElement("span");
         lbl.className   = "exp-label";
         lbl.style.color = TYPE_COLOR[rowType] || "";
         lbl.textContent = TYPE_LABEL[rowType] || "";
         expCell.appendChild(valSpan);
         expCell.appendChild(lbl);
-
-        if (rowType !== "withdraw") {
-          valSpan.style.cursor = "pointer";
-          valSpan.title = "クリックで条件を編集";
-          valSpan.onclick = (event) => {
-            event.stopPropagation();
-            openRowSnapshotEditor(row);
-          };
-        }
       }
       row.appendChild(expCell);
 
       // ── コントロール（呼び数・お供） ──────────────────────────────────
-      if (rowId !== "LAP" && rowType !== "job" && rowType !== "withdraw") {
+      if (rowId !== "LAP" && rowType !== "job") {
         const controls = document.createElement("div");
         controls.className = "row-controls";
 
-        const rSel = buildPartnerSelect(row.dataset.monsterId, opts.partner || "none");
+        const rSel = buildPartnerSelect(row.dataset.monsterId, "none");
         const cSel = buildCallSelect(callCount);
 
         controls.appendChild(rSel);
         controls.appendChild(cSel);
         row.appendChild(controls);
 
-        // 呼び数・お供の変更: 同一グループへ反映し、金額と以降の通帳振り分けは連動再計算に任せる
         const recalcRowExp = () => {
-          const newCount   = parseInt(cSel.value);
-          const newPartner = rSel.value;
-          getGroupOf(row).forEach(r => {
+          const newCount    = parseInt(cSel.value);
+          const newPartner  = rSel.value;
+          const bid = row.dataset.bid;
+
+          // 同一bid（通帳/エンゼル/溢れ）の全行へ呼び数・お供を連携
+          const group = rowCache.filter(r =>
+            r.dataset.bid === bid && r.dataset.type !== "lap_only" && r.dataset.type !== "job");
+
+          const passRow     = group.find(r => r.dataset.type === "pass");
+          const overflowRow = group.find(r => r.dataset.type === "overflow");
+
+          // 通帳行と溢れ行が同居する場合: 加算時点の通帳上限(passVal)を維持し、
+          // 新しい共通exp合計から通帳上限を差し引いた残りを溢れ行に充てる
+          const origPassVal = passRow ? (parseFloat(passRow.dataset.val) || 0) : null;
+
+          group.forEach(r => {
+            const snap = JSON.parse(r.dataset.snapshot);
             r.dataset.count = newCount;
+
             const rSelOther = r.querySelector(".rs");
             const cSelOther = r.querySelector(".cs");
             if (rSelOther && rSelOther !== rSel) rSelOther.value = newPartner;
             if (cSelOther && cSelOther !== cSel) cSelOther.value = String(newCount);
+
+            const result = calcExp(newCount, newPartner, snap);
+
+            let newVal;
+            if (r.dataset.type === "angel") {
+              newVal = result.angel;
+            } else if (r.dataset.type === "pass") {
+              // 通帳上限に達していた行は上限値のまま据え置き、未到達なら新しい共通expに追従
+              newVal = origPassVal !== null && overflowRow
+                ? Math.min(result.common, origPassVal)
+                : result.common;
+            } else if (r.dataset.type === "overflow" && passRow) {
+              newVal = Math.max(0, result.common - origPassVal);
+            } else if (r.dataset.type === "overflow") {
+              // 通帳行が無い（全額溢れ）場合
+              newVal = result.common;
+            } else {
+              newVal = result.total;
+            }
+
+            r.dataset.val          = newVal;
+            r.dataset.rawValCapped = newVal;
+            const valEl = r.querySelector(".exp-value");
+            if (valEl) valEl.textContent = newVal.toLocaleString();
           });
+
           updateTotal();
-          saveSession();
         };
 
         cSel.onchange = recalcRowExp;
@@ -870,31 +585,30 @@
       }
 
       // ── DOM挿入 & キャッシュ追加 ─────────────────────────────────────
-      if (opts.insertAt != null) {
-        // 履歴途中への再挿入: rowCache は古→新、DOM は新→古なので「一つ古い行」の直前に入れる
-        rowCache.splice(opts.insertAt, 0, row);
-        const older = rowCache[opts.insertAt - 1];
-        if (older && older.parentNode === $("rowHistory")) $("rowHistory").insertBefore(row, older);
-        else $("rowHistory").appendChild(row);
-      } else {
-        $("rowHistory").prepend(row);
-        rowCache.push(row);   // キャッシュは追加順（古→新）
-      }
+      $("rowHistory").prepend(row);
+      rowCache.push(row);   // キャッシュは追加順（古→新）
 
       updateTotal();
     }
 
     // ── 行番号振り直し ───────────────────────────────────────────────────
     function renumberRows() {
-      let num = 0;
+      let num = 1;
       rowCache.forEach(r => {
-        if (!isBattleRow(r)) return;
-        if (r.dataset.main === "true" || num === 0) num++;
-        r.dataset.bid = num;   // 溢れ/エンゼル行も同じ番号に揃える（以前は番号振り直し時に取り残されていた）
-        const el = r.querySelector(".row-id-normal");
-        if (el) el.textContent = `#${num}`;
+        const type = r.dataset.type;
+        if (type === "lap_only" || type === "job") return;
+        if (r.dataset.bid === "LAP") return;
+        if (type === "angel" || type === "overflow") {
+          const el = r.querySelector(".row-id-normal");
+          if (el) el.textContent = `#${num - 1}`;
+        } else {
+          r.dataset.bid = num;
+          const el = r.querySelector(".row-id-normal");
+          if (el) el.textContent = `#${num}`;
+          num++;
+        }
       });
-      killCount = num;
+      killCount = num - 1;
     }
 
     // ── ラップ再計算 ─────────────────────────────────────────────────────
@@ -902,7 +616,6 @@
       let prevSec = 0;
       for (let i = 0; i < rowCache.length; i++) {
         const r = rowCache[i];
-        if (r.dataset.type === "withdraw") continue;   // 引出は戦闘ではないのでラップ計算から除外
         const sec = parseFloat(r.dataset.sec);
         if (isNaN(sec)) continue;
         const lap = sec - prevSec;
@@ -924,16 +637,15 @@
         const next = rowCache[i + 1];
         const nextBid = next?.dataset.bid;
         const nextType = next?.dataset.type;
-        const isGroupable = type !== "lap_only" && type !== "job" && type !== "withdraw";
-        const nextGroupable = nextType !== "lap_only" && nextType !== "job" && nextType !== "withdraw";
+        const isGroupable = type !== "lap_only" && type !== "job";
+        const nextGroupable = nextType !== "lap_only" && nextType !== "job";
         if (!isGroupable || !nextGroupable || currentBid !== nextBid) {
           prevSec = sec;
         }
       }
 
-      const lapRows = rowCache.filter(r => r.dataset.type !== "withdraw");
-      if (lapRows.length > 0) {
-        const latest = parseFloat(lapRows[lapRows.length - 1].dataset.sec);
+      if (rowCache.length > 0) {
+        const latest = parseFloat(rowCache[rowCache.length - 1].dataset.sec);
         if (!isNaN(latest)) lastLapSec = latest;
       } else {
         lastLapSec = 0;
@@ -943,19 +655,19 @@
     // ── 合計更新 ─────────────────────────────────────────────────────────
     function updateTotal() {
       let totalExp    = 0;
-      if (!flowSuspend) recomputePassbookFlow();   // 通帳の振り分け・引出の実額を時系列で確定
-      const passbookBalance = syncPassbook();
+      let passbookExp = 0;
 
       rowCache.forEach(el => {
         const expVal = parseInt(el.dataset.val) || 0;
-        if (el.dataset.type !== "withdraw") totalExp += expVal;   // 引出は新規獲得ではない
+        totalExp += expVal;
+        if (el.dataset.type === "pass") passbookExp += expVal;
       });
 
       $("totalExpDisplay").textContent = totalExp.toLocaleString();
 
       const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
       if (passbookLimit > 0) {
-        const remaining = Math.max(0, passbookBalance);
+        const remaining = Math.max(0, passbookExp - passbookOffset);
         $("passbookExpDisplay").textContent = Math.ceil(remaining).toLocaleString();
       }
 
@@ -1044,8 +756,6 @@
         isMain:          r.dataset.main === "true",
         rawCapped:       r.dataset.rawValCapped !== undefined ? parseFloat(r.dataset.rawValCapped) : null,
         monsterId:       r.dataset.monsterId || null,
-        partner:         r.querySelector(".rs")?.value || "none",
-        req:             r.dataset.req !== undefined ? parseFloat(r.dataset.req) : null,
         snapshot:        r.dataset.snapshot || null,
       }));
     }
@@ -1065,7 +775,7 @@
     function saveSession() {
       try {
         localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify({
-          startTime, pauseSec, lastLapSec, jobOffsetSec,
+          startTime, pauseSec, lastLapSec, jobOffsetSec, passbookOffset,
           killCount, optCallCount, ritaOrKuma,
           timerRunning: !!timerHandle,
           rows:    serializeRows(),
@@ -1089,15 +799,13 @@
     function initState() {
       // destroy() を挟まずに render() が呼ばれても、必ずクリーンな初期値から始める
       if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
-      startTime = pauseSec = lastLapSec = jobOffsetSec = 0;
+      startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
       killCount        = 0;
       optCallCount      = 1;
       calcLockedUntil   = 0;
       ritaOrKuma        = "returner";
       lapNotifyFired    = false;
       jobBtnLocked      = false;
-      flowSuspend       = 0;
-      flowBusy          = false;
       rowCache.length   = 0;
     }
 
@@ -1127,7 +835,7 @@
 
       try {
         // オプション（fd/tr/ag/em・通帳・呼び数）を先に復元する。
-        // 通帳残高(syncPassbook)の計算は pb（通帳上限選択）に依存するため、
+        // 通帳残高(passbookOffset)の計算は pb（通帳上限選択）に依存するため、
         // 行の再構築・updateTotal() より前に復元しておく必要がある。
         if (data.options) {
           if ($("fd")) $("fd").checked = !!data.options.fd;
@@ -1140,7 +848,6 @@
           }
         }
 
-        flowSuspend++;   // グループが揃う前に再計算が走らないよう、全行を戻し終えるまで保留
         (data.rows || []).forEach((r) => {
           addRow(
             r.rowId, r.callCount, r.expVal, r.rowType, r.elapsedSec, r.lapSec,
@@ -1150,18 +857,14 @@
           // 保存しておいた本来のsnapshot（当時のfd/tr/ag/em等の状態）で上書きする
           const restoredRow = rowCache[rowCache.length - 1];
           if (restoredRow && r.snapshot) restoredRow.dataset.snapshot = r.snapshot;
-          if (restoredRow && r.req != null) restoredRow.dataset.req = r.req;   // 引出の要求額
-          // お供の選択も復元（旧バージョンの保存データには partner が無いので無視）
-          if (restoredRow && r.partner) {
-            const rs = restoredRow.querySelector(".rs");
-            if (rs) rs.value = r.partner;
-          }
         });
-        flowSuspend = Math.max(0, flowSuspend - 1);
 
         killCount      = data.killCount || 0;
         optCallCount   = data.optCallCount || 1;
         jobOffsetSec   = data.jobOffsetSec || 0;
+        // 通帳の残高(オフセット)を復元。pb を先に復元済みなので、
+        // 後続の updateTotal() で「通帳:残額/上限」の履歴連動が正しく再計算される。
+        passbookOffset = data.passbookOffset || 0;
         lastLapSec     = data.lastLapSec || 0;
 
         if (data.ritaOrKuma) {
@@ -1199,7 +902,6 @@
 
         window.dqxShowToast?.('前回のログを復元しました（電話や誤操作などで中断された可能性があります）', { duration: 3500 });
       } catch (e) {
-        flowSuspend = 0;
         console.warn('[expmercenary] セッション復元処理でエラー:', e);
       }
     }
@@ -1374,10 +1076,12 @@ ${getStyles()}
         const expResult = calcExp(callCount);
         const passbookLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
 
-        flowSuspend++;   // 通帳行+溢れ行+エンゼル行を追加し終えるまで連動再計算を保留
         if (passbookLimit > 0) {
-          const currentBalance = syncPassbook();
-          const remaining = Math.max(0, passbookLimit - currentBalance);
+          let accumulatedRaw = 0;
+          rowCache.filter(r => r.dataset.type === "pass").forEach(r => {
+            accumulatedRaw += parseFloat(r.dataset.rawValCapped) || 0;
+          });
+          const remaining = Math.max(0, passbookLimit - (accumulatedRaw - passbookOffset));
 
           if (remaining >= expResult.common) {
             addRow(killCount, callCount, expResult.common, "pass", elapsed, lap, true, expResult.common, null);
@@ -1393,9 +1097,6 @@ ${getStyles()}
         } else {
           addRow(killCount, callCount, expResult.total, "normal", elapsed, lap, true, expResult.total, null);
         }
-
-        flowSuspend = Math.max(0, flowSuspend - 1);
-        updateTotal();
 
         lastLapSec = elapsed;
         updateTimerDisplay(elapsed);
@@ -1428,6 +1129,7 @@ ${getStyles()}
         lastLapSec    = 0;
         killCount     = 0;
         jobOffsetSec  = 0;
+        passbookOffset = 0;
         rowCache.length = 0;
         $("rowHistory").textContent = "";
         $("btnTimerStop").innerHTML = "タイマー<br>開始";
@@ -1435,25 +1137,26 @@ ${getStyles()}
         updateTotal();
         updateUI();
         clearSession();   // 明示的な全消去なので、クラッシュ復旧用スナップショットも消す
-        markActive();     // ただし「起動中」フラグは立て直す（消えたままだと、以降のクラッシュが復元されない）
       };
 
       $("btnPassbookReset").onclick = () => {
-        const currentBalance = syncPassbook();
-        if (currentBalance <= 0) return;
-        const elapsed = timerHandle ? (Date.now() - startTime) / 1000 : pauseSec;
-        // bid は "WD" 固定（数値bidだと同bidの戦闘行と呼び数連動グループに混ざるため）
-        addRow("WD", 0, currentBalance, "withdraw", elapsed, null, false, currentBalance, null);
-        saveSession();
+        let accumulatedRaw = 0;
+        rowCache.filter(r => r.dataset.type === "pass").forEach(r => {
+          accumulatedRaw += parseFloat(r.dataset.rawValCapped) || 0;
+        });
+        passbookOffset = accumulatedRaw;
+        updateTotal();
       };
 
       $("btnPassbookWithdraw").onclick = () => {
-        const balance = syncPassbook();
+        let accumulatedRaw = 0;
+        rowCache.filter(r => r.dataset.type === "pass").forEach(r => {
+          accumulatedRaw += parseFloat(r.dataset.rawValCapped) || 0;
+        });
+        const balance = accumulatedRaw - passbookOffset;
         if (balance <= 0) return;
-        const withdrawAmount = Math.min(EXP_PER_LV, balance);
-        const elapsed = timerHandle ? (Date.now() - startTime) / 1000 : pauseSec;
-        addRow("WD", 0, withdrawAmount, "withdraw", elapsed, null, false, withdrawAmount, null);
-        saveSession();
+        passbookOffset += Math.min(EXP_PER_LV, balance);
+        updateTotal();
       };
 
       $("btnJob").onclick = () => {
@@ -1566,10 +1269,6 @@ ${getStyles()}
               lines.push(`${rowId}/${formatTime(parseFloat(el.dataset.sec) || 0)}////転職`);
               return;
             }
-            if (rowType === "withdraw") {
-              lines.push(`引出/${formatTime(parseFloat(el.dataset.sec) || 0)}/-${parseInt(el.dataset.val) || 0}///引出`);
-              return;
-            }
             const timeStr     = formatTime(parseFloat(el.dataset.sec) || 0);
             const expVal      = (parseInt(el.dataset.val) || 0).toString();
             const callIdx     = parseInt(el.dataset.count);
@@ -1622,26 +1321,36 @@ ${getStyles()}
           .forEach(el => { el.onchange = () => updateUI(true); });
       $("cn").onchange = () => updateUI(false);
 
-      // 通帳ラジオボタン切り替え時: 通帳あり行の上限を新しい上限へ差し替え、
-      // 通帳行/溢れ行の振り分けを時系列で再計算する（超過分は切り捨てず溢れ行へ）
+      // 通帳ラジオボタン切り替え時：新上限を超えた pass 行を新しい順から切り捨て
       root.querySelectorAll('input[name="pb"]').forEach(radio => {
         radio.onchange = () => {
           const newLimit = parseInt(root.querySelector('input[name="pb"]:checked')?.value || "0") || 0;
-          if (newLimit > 0) {
-            rowCache.forEach(r => {
-              if (!isBattleRow(r)) return;
-              try {
-                const snap = JSON.parse(r.dataset.snapshot || "{}");
-                if ((parseInt(snap.pb || "0") || 0) > 0) {
-                  snap.pb = String(newLimit);
-                  r.dataset.snapshot = JSON.stringify(snap);
-                }
-              } catch (e) {}
-            });
+        if (newLimit > 0) {
+          const passRows = rowCache.filter(r => r.dataset.type === "pass");
+          let total = passRows.reduce((s, r) => s + (parseFloat(r.dataset.rawValCapped) || 0), 0);
+          for (let i = passRows.length - 1; i >= 0 && total > newLimit; i--) {
+            const r = passRows[i];
+            const raw = parseFloat(r.dataset.rawValCapped) || 0;
+            const over = total - newLimit;
+            if (raw <= over) {
+              const newVal = 0;
+              r.dataset.val          = newVal;
+              r.dataset.rawValCapped = newVal;
+              const el = r.querySelector(".exp-value");
+              if (el) el.textContent = newVal.toLocaleString();
+              total -= raw;
+            } else {
+              const newVal = Math.ceil(raw - over);
+              r.dataset.val          = newVal;
+              r.dataset.rawValCapped = newVal;
+              const el = r.querySelector(".exp-value");
+              if (el) el.textContent = newVal.toLocaleString();
+              total = newLimit;
+            }
           }
-          updateTotal();
-          updateUI(true);
-          saveSession();
+          if (passbookOffset > newLimit) passbookOffset = newLimit;
+        }
+        updateUI(true);
         };
       });
 
@@ -1675,24 +1384,6 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
-v2.6.0 ...最終更新日 2026/10/01
-  - 履歴行の条件編集（モンスター・料理・修練・エンゼル・皇帝・エリクサー・通帳）を追加。履歴の経験値部分を選択して編集可能
-    - 変更内容に応じて通帳・溢れ・エンゼル・通常行の再構築を行える
-    - 通帳を削除した場合は該当行を通常行として再登録し直すことができる
-    - 編集後も履歴内の同じ位置に留まり、呼び数・お供の変更も引き続き連動する
-    - 履歴のどこかを変更すると、以降の通帳行/溢れ行の振り分けも自動で再計算される
-    - 削除は戦闘単位
-    - 通帳の切替時、上限超過ぶんは切り捨てず溢れ行へ振り替える
-
-v2.5.2 ...最終更新日 2026/09/30
-  - 通帳の「リセット」「1Lv分引出」を履歴行（引出）として記録する方式に変更
-    - 引出行を削除すると通帳残高も元に戻る
-    - 引出行は総獲得・ラップ・平均タイムには影響しない
-  - passbookOffset を廃止（残高は履歴を時系列でたどって都度算出）
-  - 引出は「その時点の残高」までしか引けない仕様に変更
-    （引出後に通帳行を下方修正しても、マイナス残高が次の加算に持ち越されない）
-  - 復元時に匹数・お供のプルダウンが初期値に戻る不具合を修正
-
 v2.5.1 ...最終更新日 2026/07/21
   - 下記定義をコメント内に明示
     - お供
@@ -1846,10 +1537,9 @@ v1.1.7
       destroy() {
         if (timerHandle) { clearInterval(timerHandle); timerHandle = null; }
         clearSession();   // 正常な離脱（destroyを経由）なので、復元対象からは外す
-        startTime = pauseSec = lastLapSec = jobOffsetSec = 0;
+        startTime = pauseSec = lastLapSec = jobOffsetSec = passbookOffset = 0;
         killCount = calcLockedUntil = 0;
         lapNotifyFired = jobBtnLocked = false;
-        flowSuspend = 0; flowBusy = false;
         rowCache.length = 0;
 
         // render() で root.parentElement の afterend に挿入した versionModal を削除
@@ -1957,18 +1647,7 @@ v1.1.7
 
   /* ── 行履歴 ──────────────────────────────────────────────────────── */
   .row-history{margin-top:4px;max-height:250px;overflow-y:auto;border-top:1px solid #eee}
-  .exp-row{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px;position:relative}
-  .snapshot-editor{position:fixed;left:50%;top:50%;transform:translate(-50%, -50%);z-index:999;background:#fff;border:1px solid #7ab8ff;border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,0.2);padding:8px 10px;min-width:220px;max-width:min(92vw, 360px)}
-  .snapshot-editor-title{font-size:11px;font-weight:bold;color:#06c;margin-bottom:6px}
-  .snapshot-editor-grid{display:flex;flex-direction:column;gap:6px}
-  .snapshot-editor-field,.snapshot-editor-group,.snapshot-editor-buffs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:#333}
-  .snapshot-editor-select{flex:1;min-width:120px;padding:2px 4px;border:1px solid #7ab8ff;border-radius:4px}
-  .snapshot-editor-buffs{border-top:1px solid #e5e7eb;padding-top:4px}
-  .snapshot-editor-check,.snapshot-editor-radio{display:inline-flex;align-items:center;gap:4px}
-  .snapshot-editor-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
-  .snapshot-editor-actions button{padding:4px 8px;border:none;border-radius:4px;cursor:pointer;font-size:11px}
-  .snapshot-editor-actions button:first-child{background:#06c;color:#fff}
-  .snapshot-editor-actions button:last-child{background:#eee;color:#333}
+  .exp-row{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid #eee;font-size:12px;white-space:nowrap;gap:4px}
   .row-id-lap{color:#2cc9ff;font-weight:bold;width:26px;font-size:10px}
   .row-id-normal{color:#999;width:26px;font-size:10px}
   .time-wrapper{display:flex;align-items:center;gap:4px;width:85px}
@@ -2058,15 +1737,6 @@ v1.1.7
 
   body.dark-mode .row-history{border-top-color:#2a2a3a;background:#1a1a2a}
   body.dark-mode .exp-row{border-bottom-color:#2a2a3a}
-  body.dark-mode .snapshot-editor{background:#1a1a2a;border-color:#7ab8ff;box-shadow:0 4px 12px rgba(0,0,0,0.35)}
-  body.dark-mode .snapshot-editor-title{color:#9ecbff}
-  body.dark-mode .snapshot-editor-field,
-  body.dark-mode .snapshot-editor-group,
-  body.dark-mode .snapshot-editor-buffs,
-  body.dark-mode .snapshot-editor-check,
-  body.dark-mode .snapshot-editor-radio{color:#e8e8f0}
-  body.dark-mode .snapshot-editor-select{background:#2a2f45;color:#e8e8f0;border-color:#7ab8ff}
-  body.dark-mode .snapshot-editor-actions button:last-child{background:#2a2f45;color:#e8e8f0}
   body.dark-mode .row-id-lap{color:#2cc9ff}
   body.dark-mode .row-id-normal{color:#aaa}
   body.dark-mode .time-lap{color:#2cc9ff}
@@ -2088,7 +1758,7 @@ v1.1.7
 
   // ─── グローバル公開（後方互換: シングルトン） ──────────────────────────
   const _defaultInstance = createExpCalc();
-  global.Expmercenary = {
+  global.ExpmercenaryV250 = {
     render:  _defaultInstance.render,
     destroy: _defaultInstance.destroy,
     // 複数インスタンスが必要な場合
