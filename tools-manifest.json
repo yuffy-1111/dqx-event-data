@@ -1,6 +1,6 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.1.8s",
+  "launcherVersion": "1.1.9s",
   "updatedAt": "2026-10-01",
   "tools": [
     {
@@ -43,6 +43,16 @@
       "ver": "1.0.5",
       "cache": true,
       "defaultHidden": true
+    },
+    {
+      "id": "durability",
+      "name": "デュラハーン耐久シミュレーター",
+      "icon": "⚔️",
+      "desc": "通常攻撃・ふりまわしの被ダメージ",
+      "url": "./tools/durability.js",
+      "renderFn": "Durahan.render",
+      "ver": "1.0.2",
+      "cache": true
     },
     {
       "id": "help",

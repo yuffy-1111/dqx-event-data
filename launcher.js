@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.8s';
+const APP_VERSION = '1.1.9s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -121,6 +121,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         { id: 'Checker',  url: './tools/checker.js'          },
         { id: 'exp-m',    url: './tools/expmercenary.js'     },
         { id: 'versions', url: './tools/version_selector.js' },
+        { id: 'durability', url: './tools/durability.js' },
         { id: 'help',     url: './tools/help.js'             },
         { id: 'settings', url: './tools/settings.js'         },
         { id: 'install',  url: './tools/install.js'          },
@@ -372,10 +373,21 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 650);
     }
 
-    // バックグラウンドチェック完了 OR 最低2秒のどちらか遅い方で閉じる
+    // 背景確認・起動時バージョン確認・最低2秒をすべて満たしてから閉じる
     const minWait = new Promise(r => setTimeout(r, 2000));
-    Promise.all([window.DQX_BG_CHECK_PROMISE.catch(() => {}), minWait])
-        .then(closeOverlay);
+    const manifestCheck = window.DQX_MANIFEST_FETCH_PROMISE || Promise.resolve(null);
+    Promise.all([
+        window.DQX_BG_CHECK_PROMISE.catch(() => {}),
+        manifestCheck.catch(() => null),
+        minWait
+    ]).then(() => {
+        if (window.DQX_NET_STATE === 'update') {
+            label.textContent = '新しいバージョンを適用しています…';
+            window.clearDqxCachesAndReload();
+            return;
+        }
+        closeOverlay();
+    });
 
     window.dqxCloseLoadingOverlay = closeOverlay;
 })();
@@ -399,7 +411,7 @@ window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(),
 // manifest が改ざんされても window.eval 等の危険なプロパティを呼べないようにする。
 const ALLOWED_RENDER_PREFIXES = [
     'Checker.', 'Expmercenary.', 'VersionSelector.',
-    'Help.', 'Settings.', 'Install.', 'Kaji.'
+    'Help.', 'Settings.', 'Install.', 'Kaji.', 'Durahan.'
 ];
 function isAllowedRenderFn(renderFn) {
     return ALLOWED_RENDER_PREFIXES.some((prefix) => renderFn.startsWith(prefix));
