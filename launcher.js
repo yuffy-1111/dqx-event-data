@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.1.9s';
+const APP_VERSION = '1.2.2s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -97,6 +97,21 @@ function dqxAppendEscapedTextWithBr(container, value) {
         }
         container.appendChild(document.createTextNode(part));
     });
+}
+
+function normalizeBadgeTypes(value) {
+    const values = Array.isArray(value) ? value : [value];
+    return [...new Set(values.filter((badge) => badge === 'yellow' || badge === 'checker-nondaily'))];
+}
+
+function mergeBadges(...values) {
+    const merged = [];
+    for (const value of values) {
+        for (const badge of normalizeBadgeTypes(value)) {
+            if (!merged.includes(badge)) merged.push(badge);
+        }
+    }
+    return merged;
 }
 
 // ========== ローディング画像（起動時スプラッシュ／ツール切り替え時 共通） ==========
@@ -201,6 +216,10 @@ window.DQX_BG_CHECK_PROMISE = (function() {
     const KEY_CHECK_DATE   = 'dqx_bg_check_date';
     const KEY_BADGES       = 'dqx_bg_badges';
 
+    function addBadge(badges, id, badge) {
+        badges[id] = mergeBadges(badges[id], badge);
+    }
+
     function quickHash(text) {
         const tail = text.slice(-256);
         return text.length + ':' + tail;
@@ -236,7 +255,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
                 const hash = quickHash(text);
                 newSnaps[id] = hash;
                 if (!isFirstRun && prevSnaps[id] && prevSnaps[id] !== hash) {
-                    if (id !== 'install') badges[id] = 'yellow';
+                    if (id !== 'install') addBadge(badges, id, 'yellow');
                 }
             } catch(e) {}
         }));
@@ -294,8 +313,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
                 const activeSetChanged = (prevActiveIds !== null) && (prevActiveIds !== activeIds);
 
                 if (!isFirstRun && (contentChanged || activeSetChanged || fixedResetIsNew)) {
-                    // ファイル更新検知(yellow)はイベント情報更新(checker-nondaily/green)より優先する
-                    if (badges['Checker'] !== 'yellow') badges['Checker'] = 'checker-nondaily';
+                    addBadge(badges, 'Checker', 'checker-nondaily');
                 }
 
                 try {
@@ -306,11 +324,11 @@ window.DQX_BG_CHECK_PROMISE = (function() {
                 // checker.json 取得に失敗しても、固定周期タスクのリセットは
                 // ローカル計算のみで判定できるためバッジは立てる
                 // （ファイル更新検知(yellow)はここでも優先する）
-                if (badges['Checker'] !== 'yellow') badges['Checker'] = 'checker-nondaily';
+                addBadge(badges, 'Checker', 'checker-nondaily');
             }
         } catch(e) {
             if (!isFirstRun && fixedResetIsNew) {
-                if (badges['Checker'] !== 'yellow') badges['Checker'] = 'checker-nondaily';
+                addBadge(badges, 'Checker', 'checker-nondaily');
             }
         }
 
@@ -318,9 +336,13 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         // ものは維持する。今回の差分で新たに検出したバッジと合成する。
         try {
             const prevBadges = JSON.parse(localStorage.getItem(KEY_BADGES) || '{}');
-            Object.assign(window.DQX_CARD_BADGES, prevBadges);
+            for (const [id, badgeTypes] of Object.entries(prevBadges)) {
+                window.DQX_CARD_BADGES[id] = mergeBadges(window.DQX_CARD_BADGES[id], badgeTypes);
+            }
         } catch(e) {}
-        Object.assign(window.DQX_CARD_BADGES, badges);
+        for (const [id, badgeTypes] of Object.entries(badges)) {
+            window.DQX_CARD_BADGES[id] = mergeBadges(window.DQX_CARD_BADGES[id], badgeTypes);
+        }
 
         saveToolSnaps(newSnaps);
         try { localStorage.setItem(KEY_CHECK_DATE, today); } catch(e) {}
@@ -631,19 +653,19 @@ const DQXTools = {
             card.dataset.toolId = id;
             card.dataset.requiresToken = String(tool.requiresToken || false);
 
-            const badge = window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id];
-            if (badge === 'checker-nondaily') {
-                const badgeEl = document.createElement('span');
-                badgeEl.className = 'card-badge card-badge-green';
-                badgeEl.title = 'イベント情報に更新あり（日課以外）';
-                badgeEl.textContent = '●';
-                card.appendChild(badgeEl);
-            } else if (badge) {
-                const badgeEl = document.createElement('span');
-                badgeEl.className = 'card-badge card-badge-yellow';
-                badgeEl.title = 'ツールが更新されました';
-                badgeEl.textContent = '●';
-                card.appendChild(badgeEl);
+            const badgeTypes = normalizeBadgeTypes(window.DQX_CARD_BADGES && window.DQX_CARD_BADGES[id]);
+            if (badgeTypes.length > 0) {
+                const badgeContainer = document.createElement('div');
+                badgeContainer.className = 'card-badges';
+                for (const badgeType of badgeTypes) {
+                    const badgeEl = document.createElement('span');
+                    badgeEl.className = `card-badge ${badgeType === 'checker-nondaily' ? 'card-badge-green' : 'card-badge-yellow'}`;
+                    badgeEl.title = badgeType === 'checker-nondaily'
+                        ? 'イベント情報に更新あり（日課以外）'
+                        : 'ツールが更新されました';
+                    badgeContainer.appendChild(badgeEl);
+                }
+                card.appendChild(badgeContainer);
             }
 
             const icon = document.createElement('div');

@@ -13,7 +13,7 @@
 //   完全バイパス（キャッシュしない・読まない）:
 //     - testtool*.js, api.github.com         ← 認証必須のため常時オンライン取得
 
-const CACHE_VERSION = '1.1.9s';
+const CACHE_VERSION = '1.2.2s';
 const CACHE_NAME = `dqx-tools-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -87,6 +87,15 @@ function normalizeUrl(url) {
     }
 }
 
+async function updateCache(request, response) {
+    try {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(request, response.clone());
+    } catch (e) {
+        console.warn('[SW] cache update failed:', e);
+    }
+}
+
 // ---------- install ----------
 self.addEventListener('install', (event) => {
     event.waitUntil(
@@ -125,21 +134,17 @@ self.addEventListener('fetch', (event) => {
     // index.html / launcher.js / tools-manifest.json
     // → 常にサーバーへ。失敗（オフライン）時のみキャッシュから返す
     if (shouldNetworkFirst(normalizedUrl, req)) {
-        event.respondWith(
-            fetch(req, { cache: 'no-store' })
-                .then((res) => {
-                    if (res && res.status === 200) {
-                        const clone = res.clone();
-                        const normReq = new Request(normalizeUrl(req.url));
-                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
-                    }
-                    return res;
-                })
-                .catch(() =>
-                    caches.match(normalizeUrl(req.url))
-                        .then((cached) => cached || caches.match('./index.html'))
-                )
-        );
+        const networkResponse = fetch(req, { cache: 'no-store' }).then(async (res) => {
+            if (res && res.status === 200) {
+                await updateCache(new Request(normalizeUrl(req.url)), res);
+            }
+            return res;
+        });
+        event.waitUntil(networkResponse.then(() => undefined, () => undefined));
+        event.respondWith(networkResponse.catch(async () => {
+            const cached = await caches.match(normalizeUrl(req.url));
+            return cached || caches.match('./index.html');
+        }));
         return;
     }
 
@@ -153,21 +158,24 @@ self.addEventListener('fetch', (event) => {
     // 該当ツールだけ確実にキャッシュmiss→ネットワーク取得される。
     // verが同じ間はヒットし続けるので、通常時の速度は変わらない。
     const normReq = new Request(req.url);
-    event.respondWith(
-        caches.match(normReq).then((cached) => {
-            const networkFetch = fetch(req)
-                .then((res) => {
-                    if (res && res.status === 200) {
-                        const clone = res.clone();
-                        caches.open(CACHE_NAME).then((c) => c.put(normReq, clone));
-                    }
-                    return res;
-                })
-                .catch(() => cached);
-
-            return cached || networkFetch;
-        })
-    );
+    const networkFetch = fetch(req).then(async (res) => {
+        if (res && res.status === 200) {
+            await updateCache(normReq, res);
+        }
+        return res;
+    });
+    event.waitUntil(networkFetch.then(() => undefined, () => undefined));
+    event.respondWith(caches.match(normReq).then(async (cached) => {
+        if (cached) return cached;
+        try {
+            return await networkFetch;
+        } catch (e) {
+            // 初回起動時にツールURLへ ?v= が付いても、precache済み資産を返す。
+            const precached = await caches.match(normalizeUrl(req.url));
+            if (precached) return precached;
+            throw e;
+        }
+    }));
 });
 
 // ---------- message ----------
