@@ -174,7 +174,7 @@
         }
     </style>
     <script>
-        window.HTML_VERSION = '1.2.2s';
+        window.HTML_VERSION = '1.2.3s';
 
         window.RELOAD_KEY  = 'dqx_reload_count';
         window.MAX_RELOAD  = 2;
@@ -618,9 +618,13 @@ function registerAllTools(manifestData) {
                 .filter((t) => newIds.includes(t.id))
                 .map((t) => t.name.replace(/<br>/g, ''))
                 .join('、');
-            setTimeout(() => {
-                window.dqxShowToast(`新しいツールが追加されました：${newNames}`, { variant: 'success', duration: 7000 });
-            }, 800);
+            if (typeof window.dqxQueueNewToolNotice === 'function') {
+                window.dqxQueueNewToolNotice(newNames);
+            } else {
+                setTimeout(() => {
+                    window.dqxShowToast(`新しいツールが追加されました：${newNames}`, { variant: 'success', duration: 7000 });
+                }, 800);
+            }
         }
     }
     localStorage.setItem('dqx_known_tool_ids', JSON.stringify(currentIds));

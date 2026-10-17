@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.2.2s';
+const APP_VERSION = '1.2.3s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -20,6 +20,7 @@ function dqxGetJSTDateKey() {
 // 日付が変わっていたらキャッシュクリア込みで強制的に再読み込みする。
 const STORAGE_KEYS = Object.freeze({
     APP_VERSION: 'dqx_app_version',
+    PENDING_UPDATE_NOTICE: 'dqx_pending_update_notice',
     SIDEBAR_VISIBLE: 'dqx_sidebar_visible',
     DARK_MODE: 'darkMode',
     CARD_ORDER: 'dqx_card_order',
@@ -441,18 +442,83 @@ function isAllowedRenderFn(renderFn) {
 
 function checkVersionUpdate() {
     const storedVersion = localStorage.getItem(STORAGE_KEYS.APP_VERSION);
+    let pendingNotice = null;
+    try {
+        pendingNotice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+    } catch (e) {
+        localStorage.removeItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE);
+    }
+
     if (storedVersion && storedVersion !== APP_VERSION) {
-        setTimeout(() => {
-            if (typeof window.dqxShowToast === 'function') {
-                window.dqxShowToast(
-                    `アップデートされました！ ${storedVersion} → ${APP_VERSION}`,
-                    { variant: 'success', duration: 6000 }
-                );
-            }
-        }, 500);
+        pendingNotice = {
+            fromVersion: pendingNotice?.fromVersion || storedVersion,
+            toVersion: APP_VERSION,
+            newTools: Array.isArray(pendingNotice?.newTools) ? pendingNotice.newTools : [],
+        };
+        localStorage.setItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE, JSON.stringify(pendingNotice));
     }
     localStorage.setItem(STORAGE_KEYS.APP_VERSION, APP_VERSION);
+
+    if (pendingNotice && (pendingNotice.toVersion === APP_VERSION || pendingNotice.newTools?.length)) {
+        schedulePendingUpdateNotice();
+    }
 }
+
+let updateNoticeScheduled = false;
+function schedulePendingUpdateNotice() {
+    if (updateNoticeScheduled) return;
+    updateNoticeScheduled = true;
+
+    const showWhenReady = () => {
+        if (document.getElementById('dqx-loading-overlay')) {
+            setTimeout(showWhenReady, 200);
+            return;
+        }
+
+        let notice;
+        try {
+            notice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+        } catch (e) {
+            console.warn('[Update Notice] 通知情報の読み込みに失敗しました', e);
+            updateNoticeScheduled = false;
+            return;
+        }
+
+        const messages = [];
+        if (notice?.fromVersion && notice?.toVersion && notice.fromVersion !== notice.toVersion) {
+            messages.push(`アップデートされました！ ${notice.fromVersion} → ${notice.toVersion}`);
+        }
+        if (Array.isArray(notice?.newTools) && notice.newTools.length > 0) {
+            messages.push(`新しいツールが追加されました：${notice.newTools.join('、')}`);
+        }
+        if (messages.length > 0 && typeof window.dqxShowToast === 'function') {
+            window.dqxShowToast(messages.join('。'), { variant: 'success', duration: 7000 });
+            localStorage.removeItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE);
+        }
+        updateNoticeScheduled = false;
+    };
+    setTimeout(showWhenReady, 200);
+}
+
+window.dqxQueueNewToolNotice = function(names) {
+    let notice;
+    try {
+        notice = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE) || 'null');
+    } catch (e) {
+        console.warn('[Update Notice] 通知情報を初期化します', e);
+        notice = null;
+    }
+    if (!notice || typeof notice !== 'object') {
+        notice = { fromVersion: null, toVersion: APP_VERSION, newTools: [] };
+    }
+    const namesToAdd = Array.isArray(names) ? names : [names];
+    notice.newTools = [...new Set([
+        ...(Array.isArray(notice.newTools) ? notice.newTools : []),
+        ...namesToAdd.filter((name) => typeof name === 'string' && name.length > 0),
+    ])];
+    localStorage.setItem(STORAGE_KEYS.PENDING_UPDATE_NOTICE, JSON.stringify(notice));
+    schedulePendingUpdateNotice();
+};
 
 const DQXTools = {
     tools: {},
@@ -502,6 +568,7 @@ const DQXTools = {
     cleanupStorage: function() {
         const allowedLocal = [
             'dqx_app_version',
+            'dqx_pending_update_notice',
             'dqx_card_order',
             'dqx_visible_tools',
             'dqx_dev_mode',
