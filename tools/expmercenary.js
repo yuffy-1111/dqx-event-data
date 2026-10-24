@@ -1,4 +1,4 @@
-// ========== 傭兵用多機能ツール ver2.7.2 ==========
+// ========== 傭兵用多機能ツール ver2.7.3 ==========
 // ベース: ver2.4.0 統合
 // [CSS]    インラインstyleを全廃し、クラスベースで再定義
 // [AUDIO]  playLapWarning移植（AudioContext管理・resume対応・音色変更）
@@ -15,6 +15,10 @@
 // [FEATURE]  履歴の変更（条件編集/呼び数/お供/削除/引出/通帳切替）に応じて、以降の通帳・溢れ行を
 //            時系列で連動再計算（recomputePassbookFlow）。履歴行の条件編集を追加し、モンスター/料理/修練/エンゼル/皇帝/エリクサー/通帳の
 //            スナップショットを適用して、通帳・溢れ・エンゼル・通常行の構造を再構築（ver2.6.0）
+
+// [FIX]      (ver2.7.3) 経験値計算の浮動小数点誤差を修正。料理(+0.3)を含む倍率を小数で足していたため、数学的に整数ちょうどになる
+//            組み合わせで floor が1少なくなり、料理の+1補正が打ち消されてゲームより1少なくなっていた
+//            （例: ヘルガーディアン 料理+元気 10匹 599750→599751）。倍率を10倍整数で扱う整数演算に変更。
 
 // [CHANGE]   (ver2.7.2) 強敵ボーナスはデュラハーン +15% 固定に変更し、率のプルダウン(sb)を廃止。PTメンバーに141以上がいると
 //            「しらべる」のレベル差が変わり自分のLvだけでは率が決まらないため、職Lvからの自動判定は取りやめ。
@@ -385,12 +389,15 @@
         bonusExp = Math.ceil(baseExp * STRONG_BONUS_PCT / 100);
       }
 
-      let rate = 1.0;
-      if (fd) rate += 0.3;
-      if (elixir === "genki")   rate += 1;
-      if (elixir === "bakushin") rate += 2;
-      if (tr) rate += 1;
-      if (em) rate += 1;
+      // 倍率は「10倍した整数」(r10)で保持する（ver2.7.3）。
+      // 小数のまま足す(1.0+0.3+1=2.3)と、23990*2.3=55176.99999999999 のような浮動小数点誤差が出て、
+      // 数学的に整数ちょうどになる組み合わせで floor が1つ落ち、料理の+1補正が打ち消されていた。
+      let r10 = 10;
+      if (fd) r10 += 3;
+      if (elixir === "genki")   r10 += 10;
+      if (elixir === "bakushin") r10 += 20;
+      if (tr) r10 += 10;
+      if (em) r10 += 10;
 
       const partnerExpVal  = PARTNER_EXP[partnerKey] || 0;
       const passbookLimit  = parseInt(pbVal) || 0;
@@ -398,9 +405,10 @@
       const isHighLimit    = elixir === "bakushin" || tr;
       const expLimit       = isHighLimit ? 1499999 : 599999;
 
-      const rawCommon  = baseExp * rate + bonusExp;
+      // 通常分は10倍整数(tenths)のまま保持し、最後に整数除算で floor する
+      const tenCommon  = baseExp * r10 + bonusExp * 10;
+      const tenPCommon = partnerExpVal * r10;
       const rawAngel   = ag ? baseExp * 2 : 0;
-      const rawPCommon = partnerExpVal * rate;
       const rawPAngel  = ag ? partnerExpVal * 2 : 0;
 
       // ゲームの経験値計算ロジック（実測値10件から確定）:
@@ -408,10 +416,11 @@
       // 料理(+0.3)があるとrateに小数部が生じる。c=5,10等でtotalが
       // 数学的には整数になる組み合わせでもゲームは+1する。
       // 料理なし(rate=整数)はtotalが正確に整数になるため+1不要。
+      // 実測: ヘルガーディアン 料理+元気 10匹=599751 / ダースリカント+ズッキ 料理+元気 10匹=370117（ver2.7.3）
       // エンゼル経験値(rawAngel)のrateは×2固定(整数)なので
       // callCount倍しても小数部が生じない → fdBonus不要。
       const fdBonus = fd ? 1 : 0;
-      const rawTotalCommon = Math.floor(rawCommon * callCount + rawPCommon) + fdBonus;
+      const rawTotalCommon = Math.floor((tenCommon * callCount + tenPCommon) / 10) + fdBonus;
       const rawTotalAngel  = Math.floor(rawAngel  * callCount + rawPAngel);
       const rawTotal       = rawTotalCommon + rawTotalAngel;
 
@@ -2041,6 +2050,10 @@ ${getStyles()}
 </div>
   <div id="tab-changelog" class="modal-tab-content">
     <pre class="modal-changelog">
+v2.7.3
+
+  - 経験値の計算誤差を修正しました。料理ありで整数ちょうどになる組み合わせ（例: ヘルガーディアン 料理+元気 10匹）で、ゲームより1少なく表示されていました
+
 v2.7.2
 
   - デュラハーンの強敵ボーナスを +15% 固定にしました。PTに141以上がいるとレベル差が変わるため、職業レベルからの自動判定と率のプルダウンは廃止しました

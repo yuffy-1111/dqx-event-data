@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.2.3s",
-  "updatedAt": "2026-10-17",
+  "launcherVersion": "1.2.4s",
+  "updatedAt": "2026-10-24",
   "tools": [
     {
       "id": "Checker",
@@ -20,7 +20,7 @@
       "desc": "経験値計算<br>タイマー",
       "url": "./tools/expmercenary.js",
       "renderFn": "Expmercenary.render",
-      "ver": "2.7.2",
+      "ver": "2.7.3",
       "cache": true
     },
     {
