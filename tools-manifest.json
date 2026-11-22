@@ -1,7 +1,7 @@
 {
   "_comment": "起動時オンラインチェックで参照される正データ。ツール追加・バージョン更新時はここを必ず更新してください。",
-  "launcherVersion": "1.2.4s",
-  "updatedAt": "2026-10-24",
+  "launcherVersion": "1.2.5s",
+  "updatedAt": "2026-11-22",
   "tools": [
     {
       "id": "Checker",
@@ -10,7 +10,7 @@
       "desc": "日課・週課・隔週・月課",
       "url": "./tools/checker.js",
       "renderFn": "Checker.render",
-      "ver": "1.2.4s",
+      "ver": "1.2.5s",
       "cache": true
     },
     {
@@ -34,17 +34,6 @@
       "cache": true
     },
     {
-      "id": "kaji",
-      "name": "鍛冶職人シミュレーター",
-      "icon": "🔨",
-      "desc": "鍛冶シミュレーター",
-      "url": "./tools/kaji.js",
-      "renderFn": "Kaji.render",
-      "ver": "1.0.5",
-      "cache": true,
-      "defaultHidden": true
-    },
-    {
       "id": "durability",
       "name": "デュラハーン耐久シミュレーター",
       "icon": "⚔️",
@@ -61,7 +50,7 @@
       "desc": "使い方<br>Q&A",
       "url": "./tools/help.js",
       "renderFn": "Help.render",
-      "ver": "1.1.2s",
+      "ver": "1.1.3s",
       "cache": true
     },
     {
@@ -71,7 +60,7 @@
       "desc": "キャッシュ<br>フィードバック",
       "url": "./tools/settings.js",
       "renderFn": "Settings.render",
-      "ver": "1.1.2s",
+      "ver": "1.1.3s",
       "cache": true
     },
     {

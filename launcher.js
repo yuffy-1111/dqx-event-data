@@ -1,5 +1,5 @@
 // ========== DQXTools ランチャー ==========
-const APP_VERSION = '1.2.4s';
+const APP_VERSION = '1.2.5s';
 window.LAUNCHER_VERSION = APP_VERSION;
 
 // ランチャー読み込み完了を通知（index.html 側が受信してバージョン確認を行う）
@@ -117,14 +117,21 @@ function mergeBadges(...values) {
 
 // ========== ローディング画像（起動時スプラッシュ／ツール切り替え時 共通） ==========
 const DQX_LOADING_IMAGES = [
-    './images/dqx_loading.jpg',
-    './images/dqx_loading2.jpg',
-    './images/dqx_loading3.jpg',
-    './images/dqx_loading4.jpg',
-    './images/dqx_loading5.jpg',
+    { src: './images/dqx_loading.jpg', weight: 17, tag: '#ヴィリの棲む森' },
+    { src: './images/dqx_loading2.jpg', weight: 17, tag: '#ヴィリの棲む森' },
+    { src: './images/dqx_loading3.jpg', weight: 17, tag: '#ヴィリの棲む森' },
+    { src: './images/dqx_loading4.jpg', weight: 17 },
+    { src: './images/dqx_loading5.jpg', weight: 17, tag: '#ガーデンアリス' },
+    { src: './images/dqx_loading6.jpg', weight: 9, tag: '#ヴィリの棲む森' },
+    { src: './images/dqx_loading7.jpg', weight: 6, tag: '#リヴァスタ' },
 ];
 function dqxRandomLoadingImage() {
-    return DQX_LOADING_IMAGES[Math.floor(Math.random() * DQX_LOADING_IMAGES.length)];
+    let roll = Math.random() * DQX_LOADING_IMAGES.reduce((sum, image) => sum + image.weight, 0);
+    for (const image of DQX_LOADING_IMAGES) {
+        if (roll < image.weight) return image;
+        roll -= image.weight;
+    }
+    return DQX_LOADING_IMAGES[DQX_LOADING_IMAGES.length - 1];
 }
 
 // ========== バックグラウンドコンテンツチェック ==========
@@ -362,7 +369,7 @@ window.DQX_BG_CHECK_PROMISE = (function() {
 // 毎回のアプリ起動時（通常起動・バージョン不一致や6時跨ぎによる強制リロード後の
 // 再起動を含む）に必ず表示する。画像はプリキャッシュ済みなので待ち時間は発生しない。
 (function() {
-    const img = dqxRandomLoadingImage();
+    const loadingImage = dqxRandomLoadingImage();
 
     const overlay = document.createElement('div');
     overlay.id    = 'dqx-loading-overlay';
@@ -372,16 +379,37 @@ window.DQX_BG_CHECK_PROMISE = (function() {
         'background:#000;transition:opacity 0.6s ease;',
     ].join('');
 
+    const imageFrame = document.createElement('div');
+    imageFrame.style.cssText = 'position:relative;display:inline-flex;align-self:center;max-width:100%;max-height:80vh;';
+
     const imgEl = document.createElement('img');
-    imgEl.src   = img;
-    imgEl.style.cssText = 'max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px;';
+    imgEl.src   = loadingImage.src;
+    const darkMode = localStorage.getItem(STORAGE_KEYS.DARK_MODE) === 'dark';
+    imgEl.style.cssText = [
+        'max-width:100%;max-height:80vh;object-fit:contain;border-radius:8px;',
+        darkMode ? 'filter:brightness(0.3);' : '',
+    ].join('');
     imgEl.alt   = '';
+    imageFrame.appendChild(imgEl);
+
+    if (loadingImage.tag) {
+        const tag = document.createElement('div');
+        tag.textContent = loadingImage.tag;
+        tag.style.cssText = [
+            'position:absolute;right:10px;bottom:10px;z-index:1;',
+            'padding:4px 9px;border-radius:999px;',
+            'background:rgba(0,0,0,0.65);color:#fff;',
+            'font-size:12px;line-height:1.4;letter-spacing:0.02em;',
+            'pointer-events:none;white-space:nowrap;',
+        ].join('');
+        imageFrame.appendChild(tag);
+    }
 
     const label = document.createElement('div');
     label.textContent   = 'Now Loading\u2026';
     label.style.cssText = 'color:#aaa;font-size:13px;margin-top:16px;letter-spacing:.1em;';
 
-    overlay.appendChild(imgEl);
+    overlay.appendChild(imageFrame);
     overlay.appendChild(label);
 
     if (document.body) {
@@ -434,7 +462,7 @@ window.DQX_RELEASE_NOTES_PROMISE = fetch('./release-notes.json?v=' + Date.now(),
 // manifest が改ざんされても window.eval 等の危険なプロパティを呼べないようにする。
 const ALLOWED_RENDER_PREFIXES = [
     'Checker.', 'Expmercenary.', 'VersionSelector.',
-    'Help.', 'Settings.', 'Install.', 'Kaji.', 'Durahan.'
+    'Help.', 'Settings.', 'Install.', 'Durahan.'
 ];
 function isAllowedRenderFn(renderFn) {
     return ALLOWED_RENDER_PREFIXES.some((prefix) => renderFn.startsWith(prefix));
@@ -578,6 +606,7 @@ const DQXTools = {
             'dqx_disabled_final10',
             'dqx_hidden_tasks_v1',
             'dqx_limited_checks_v3',
+            'dqx_ver_setup_v1',
             'dqx_lap_notify',
             'dqx_shopping_cart',
             'dqx_material_prices',
@@ -1460,10 +1489,10 @@ const DQXTools = {
             this.removeOldToolScripts(tool.url, tool.ver);
             await this.loadScript(tool.url, tool.renderFn, tool.ver);
 
-            // renderFn（例: "Kaji.render"）からメソッドと呼び出し元オブジェクトを分離する。
+            // renderFnからメソッドと呼び出し元オブジェクトを分離する。
             // 従来は関数参照だけを取り出して `fn('#dqx-tool-container')` のように
             // 素の関数呼び出しをしていたため、render内で `this` を参照するツール
-            // （kaji.js 等）では this が undefined になりエラーになっていた。
+            // では this が undefined になりエラーになっていた。
             const renderPath   = tool.renderFn.split('.');
             const methodName   = renderPath.pop();
             const thisContext  = renderPath.reduce((obj, key) => obj && obj[key], window);
@@ -1550,6 +1579,24 @@ const DQXTools = {
         if (document.getElementById('dqx-guide-overlay')) return;
 
         let idx = 0;
+        const rootElement = document.documentElement;
+        const bodyElement = document.body;
+        const initialScrollX = window.scrollX;
+        const initialScrollY = window.scrollY;
+        const previousRootOverflow = rootElement.style.overflow;
+        const previousBodyOverflow = bodyElement.style.overflow;
+        const preventScroll = (event) => event.preventDefault();
+        const preventScrollKey = (event) => {
+            if (!['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) return;
+            if (event.target && event.target.closest
+                && event.target.closest('button,input,textarea,select,[contenteditable="true"]')) return;
+            event.preventDefault();
+        };
+        rootElement.style.overflow = 'hidden';
+        bodyElement.style.overflow = 'hidden';
+        document.addEventListener('wheel', preventScroll, { passive: false, capture: true });
+        document.addEventListener('touchmove', preventScroll, { passive: false, capture: true });
+        window.addEventListener('keydown', preventScrollKey, true);
 
         const overlay = document.createElement('div');
         overlay.id = 'dqx-guide-overlay';
@@ -1562,16 +1609,23 @@ const DQXTools = {
 
         const cleanup = () => {
             window.removeEventListener('resize', reposition);
+            window.removeEventListener('scroll', reposition, true);
+            document.removeEventListener('wheel', preventScroll, true);
+            document.removeEventListener('touchmove', preventScroll, true);
+            window.removeEventListener('keydown', preventScrollKey, true);
             overlay.remove();
             highlight.remove();
             balloon.remove();
+            rootElement.style.overflow = previousRootOverflow;
+            bodyElement.style.overflow = previousBodyOverflow;
+            window.scrollTo(initialScrollX, initialScrollY);
         };
 
         const finish = () => {
             try { localStorage.setItem(guideKey, '1'); } catch (e) { /* noop */ }
             cleanup();
             if (window.dqxShowToast) {
-                window.dqxShowToast('ガイドは設定からいつでも見返せます', { duration: 4000 });
+                window.dqxShowToast('ガイドは設定から再度確認できます', { duration: 4000 });
             }
         };
 
@@ -1603,8 +1657,6 @@ const DQXTools = {
             left = Math.max(10, Math.min(left, window.innerWidth - balloonWidth - 10));
             balloon.style.top  = top + 'px';
             balloon.style.left = left + 'px';
-
-            target.scrollIntoView({ block: 'center', behavior: 'smooth' });
         };
 
         const renderStep = () => {
@@ -1672,10 +1724,15 @@ const DQXTools = {
             actions.appendChild(actionsRight);
             balloon.appendChild(actions);
 
-            requestAnimationFrame(reposition);
+            requestAnimationFrame(() => {
+                const target = document.querySelector(step.selector);
+                if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                reposition();
+            });
         };
 
         window.addEventListener('resize', reposition);
+        window.addEventListener('scroll', reposition, true);
 
         document.body.appendChild(overlay);
         document.body.appendChild(highlight);
@@ -1699,6 +1756,14 @@ const DQXTools = {
             { selector: '#footer-releasenotes-btn', title: 'リリースノート', text: '更新による変更内容はここから確認できます。' },
         ];
         this.showGuide(steps, 'dqx_guide_seen_home', { force: !!force });
+    },
+
+    showCheckerGuideForced: async function() {
+        await this.loadTool('Checker');
+        if (this.currentTool !== 'Checker') return;
+        if (window.Checker && typeof window.Checker.showGuide === 'function') {
+            window.Checker.showGuide(true);
+        }
     },
 
     // 設定画面の「ガイドをもう一度見る」ボタンから呼ばれる。
